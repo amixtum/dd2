@@ -1,0 +1,115 @@
+Dangerous Deliveries:
+  It is your first day on the job as a delivery skater in the Grind Zone
+  Grind, skate, and reshape the world around you to deliver all the packages
+, no matter what.
+
+  Mechanics:
+    The Player can move from one point to another, where each point
+    contains an Obstacle that may or may not be traversable by the player.
+    The player directly controls their instantaneous velocity (not position), 
+    in order to better simulate running.
+
+    Space:
+      Every point has an (x, y, height) position vector
+
+    Movement:
+      Pressing a movement key (8 directional) sets the instantaneous
+      velocity of the Player. Pressing the wait key sets the instantaneous
+      velocity of the Player to 0.
+
+      The exception to this rule is grinding Rails, which resets the 
+      Speed of the Player to align with the Rail, taking into account 
+      its most recent Speed's magnitude
+
+      Only adjacent points are traversable:
+        i.e. a point p is traversable iff p_x in [x - 1, x + 1],
+        p_y in [y - 1, y + 1], and p_height in [height - 1, height + 1]
+
+    Speed 
+      a 2d vector that determines how much time 
+      a move from one point to another takes
+      A component of a Speed vector (at one timestep) is defined by:
+        Speed_i_t = Speed_i_[t-1] * speed_damp + inst_i_t clamped in (-max_speed, max_speed)
+        with:
+          Speed_i_t = the i'th component of a Speed vector at time t
+          speed_damp = a number in (0, 1) that represents a natural
+                 tendency to slow down
+          inst_i = i'th component of the Player's instantaneous velocity
+          max_speed = a constant
+
+    Balance (out of date: See controller/src/player_controller.rs for 
+             current computations)
+      A 2d vector that represents which direction the Player is leaning.
+      If this vector reaches a certain length, the Player falls over.
+      A component of a Balance vector is first (later we will
+      define other equations that will modify the Balance vector) 
+      defined by the equation:
+        Balance_i_t = Balance_i_[t-1] * balance_damp       
+        with:
+          balance_damp = a number in (0, 1)
+
+      A Balance vector is modified when (1) a player moves perpendicularly
+      (in any axis) to their current Speed vector, (2) moves opposite
+      to their current Speed vector or (3) encounters an obstacle.
+      In the first two cases, the Balance vector is further
+      modified by the equation:
+        Balance_x_t += sign of inst_y * 
+                       (1 - dot(normalize(inst_v), 
+                                normalize(Speed_[i - 1]))) * turn_factor
+        with:
+          turn_factor = a number in (0, 1)
+        and the same for Balance_y_t with x and y switched
+
+    Falling Over:
+      sets:
+        Speed = (0, 0)
+        Balance = (0, 0)
+
+    Obstacles 
+      affect a player's Balance, Speed and their ability to move 
+      around the cartesian plane (e.g. an obstacle only allows movement in 
+      one direction) All obstacles have an (x, y, height) position. Moving
+      up one height reduces Speed by up_speed_factor, and moving down one height
+      increases speed by down_speed_factor
+      i.e.
+        Moving up a level:
+          Speed_i_t *= up_speed_factor
+          with:
+            up_speed_factor in (0, 1)
+        Moving down a level:
+          Speed_i_t *= down_speed_factor
+          with:
+            down_speed_factor in (1, 2)
+      Attempting to move into an obstacle that has height 
+
+      Platform:
+        * x y position
+        * height 
+      Rail:
+        * x y position
+        * height
+        * +/- x y direction (normal vectors)
+        * moving onto the rail "grinds" the rail,
+          * moves the Player along the rail, dampening the other
+            axes of their Speed
+        * while grinding the rail
+          * if the Player grinded the rail upwards, i.e. the player's height has increased
+            since grinding the rail, then the player falls over to whichever side their Balance
+            vector is most aligned with
+          * if a player's speed reaches (0, 0) they fall off the rail
+        Pit:
+          * x y position
+          * falling into a pit is game over
+
+    Score
+      A function that maps the amount of time the delivery took to a number
+
+    Goals
+      Objectives for the player to reach (a fixed position)
+      When all the goals have been reached, the game ends
+
+    Opponents
+      Platformers
+        they only move when on Platforms
+        otherwise they let the Rails move them
+        always move towards a fixed objective until it is reached

@@ -9,6 +9,7 @@ pub mod map_indexing_system;
 pub mod melee_combat_system;
 pub mod damage_system;
 pub mod gui;
+pub mod gamelog;
 
 
 use components::BlocksTile;
@@ -17,6 +18,7 @@ use components::Monster;
 use components::Name;
 use components::SufferDamage;
 use components::WantsToMelee;
+use gamelog::GameLog;
 use map::Map;
 
 use components::Position;
@@ -54,6 +56,7 @@ fn main() -> rltk::BError {
             game.state.ecs.insert(player);
             game.state.ecs.insert(map);
             game.state.ecs.insert(player_pos);
+            game.state.ecs.insert(GameLog {entries: vec!["Welcome to Dangerous Deliveries".to_string()]});
 
             // move game into this function
             Game::run(game)

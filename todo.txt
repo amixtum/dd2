@@ -1,0 +1,1 @@
+create movement system based on velocity (key press/ai) and speed (grid movement)

@@ -1,14 +1,14 @@
-use rltk::{GameState, Rltk};
+use rltk::{GameState, Rltk, Point};
 
 use specs::prelude::*;
 
 use crate::damage_system::DamageSystem;
 use crate::melee_combat_system::MeleeCombatSystem;
-use crate::{damage_system};
+use crate::{damage_system, gui};
 use crate::map::{Map};
 use crate::map_indexing_system::MapIndexingSystem;
 use crate::monster_ai_system::MonsterAI;
-use crate::player::Player;
+use crate::player::{Player, look_mode_input};
 use crate::components::Viewshed;
 use crate::visibility_system::VisibilitySystem;
 
@@ -22,11 +22,15 @@ pub enum RunState {
     PreRun,
     PlayerTurn,
     MonsterTurn,
+    Looking,
+    CleanupTooltips,
 }
 
 pub struct State {
     pub ecs: World,
     pub has_drawn: bool,
+    pub look_cursor: (i32, i32),
+    pub last_mouse_position: (i32, i32),
 }
 
 impl State {
@@ -70,6 +74,8 @@ impl GameState for State {
             newrunstate = *runstate;
         }
 
+        let last_cursor = self.look_cursor;
+
         match newrunstate {
             RunState::PreRun => {
                 self.run_systems_player();
@@ -87,7 +93,27 @@ impl GameState for State {
                 self.run_systems_monsters();
                 damage_system::delete_dead(&mut self.ecs);
                 newrunstate = RunState::AwaitingInput;
+            },
+            RunState::Looking => {
+                if self.last_mouse_position.0 == -1 {
+                    self.last_mouse_position = ctx.mouse_pos();
+                }
+
+                if self.look_cursor.0 == -1 {
+                    let player_pos = self.ecs.fetch::<Point>();
+                    self.look_cursor.0 = player_pos.x;
+                    self.look_cursor.1 = player_pos.y;
+                }
+
+                let look_input = look_mode_input(self, ctx);
+                newrunstate = look_input.0;
+                self.look_cursor = look_input.1;
+            },
+            RunState::CleanupTooltips => {
+                self.has_drawn = false;
+                newrunstate = RunState::AwaitingInput;
             }
+
         }
 
         {
@@ -95,7 +121,30 @@ impl GameState for State {
             *runwriter = newrunstate;
         }
 
-        if !self.has_drawn || newrunstate == RunState::PlayerTurn || newrunstate == RunState::MonsterTurn {
+        let mut looked = false;
+        if newrunstate == RunState::Looking {
+            let viewsheds = self.ecs.read_storage::<Viewshed>();
+            let player = self.ecs.fetch::<Entity>();
+            let mouse_pos = ctx.mouse_point();
+
+            if last_cursor.0 != self.look_cursor.0 || last_cursor.1 != self.look_cursor.1 {
+                looked = true;
+            } else if let Some(viewshed) = viewsheds.get(*player) {
+                if (mouse_pos.x != self.last_mouse_position.0 || 
+                    mouse_pos.y != self.last_mouse_position.1) &&
+                    viewshed.visible_tiles.contains(&mouse_pos) {
+                    self.look_cursor = (mouse_pos.x, mouse_pos.y);
+                    self.last_mouse_position = (mouse_pos.x, mouse_pos.y);
+                    looked = true;
+                }
+            }
+            
+        }
+
+        if !self.has_drawn || 
+            newrunstate == RunState::PlayerTurn || 
+            newrunstate == RunState::MonsterTurn || 
+            (newrunstate == RunState::Looking && looked) {
             self.has_drawn = true;
 
             // clear screen
@@ -115,6 +164,12 @@ impl GameState for State {
                         ctx.set(pos.point.x, pos.point.y, render.fg, render.bg, render.glyph);
                     }
                 }
+            }
+
+            gui::draw_ui(&self.ecs, ctx);
+
+            if newrunstate == RunState::Looking && looked {
+                gui::draw_tooltips_xy(&self.ecs, ctx, self.look_cursor.0, self.look_cursor.1);
             }
         }
 

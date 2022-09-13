@@ -29,10 +29,14 @@ impl Game {
             .build();
         
         match try_context {
-            Ok(context) => {
+            Ok(mut context) => {
+                context.with_post_scanlines(true);
+
                 let state = State {
                     ecs: World::new(),
                     has_drawn: false,
+                    look_cursor: (-1, -1),
+                    last_mouse_position: (-1, -1),
                 };
 
                 Ok(Game {

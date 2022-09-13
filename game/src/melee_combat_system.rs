@@ -1,13 +1,13 @@
-use rltk::console;
 use specs::{prelude::*};
 
-use crate::components::{WantsToMelee, CombatStats, Name, SufferDamage, Position};
+use crate::{components::{WantsToMelee, CombatStats, Name, SufferDamage, Position}, gamelog::GameLog};
 
 pub struct MeleeCombatSystem {}
 
 impl<'a> System<'a> for MeleeCombatSystem {
     type SystemData = (
         Entities<'a>,
+        WriteExpect<'a, GameLog>,
         WriteStorage<'a, WantsToMelee>,
         ReadStorage<'a, Name>,
         ReadStorage<'a, CombatStats>,
@@ -18,6 +18,7 @@ impl<'a> System<'a> for MeleeCombatSystem {
     fn run(&mut self, data: Self::SystemData) {
         let (
             entities, 
+            mut log,
             mut wants_to_melee,
             names,
             combat_stats,
@@ -41,10 +42,10 @@ impl<'a> System<'a> for MeleeCombatSystem {
                     let damage = i32::max(0, stats.power - target_stats.defense);
 
                     if damage == 0 {
-                        console::log(format!("{} does no damage to {}", &name.name, &target_name.name));
+                        log.entries.push(format!("{} does no damage to {}", &name.name, &target_name.name));
                     }
                     else {
-                        console::log(format!("{} does {} damage to {}", &name.name, damage, &target_name.name));
+                        log.entries.push(format!("{} does {} damage to {}", &name.name, damage, &target_name.name));
                         SufferDamage::new_damage(&mut inflict_damage, wants_melee.target, damage);
                     }
                 }
