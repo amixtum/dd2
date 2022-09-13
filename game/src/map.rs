@@ -128,13 +128,13 @@ impl Map {
 
     pub fn new_map_rooms_and_corridors() -> Map {
         let mut map = Map {
-            tiles: vec![TileType::Wall; MAPWIDTH*MAPHEIGHT],
+            tiles: vec![TileType::Wall; MAPCOUNT],
             rooms: Vec::new(),
             width: MAPWIDTH as i32,
             height: MAPHEIGHT as i32,
             revealed_tiles: HashSet::new(),
             blocked_tiles: HashSet::new(),
-            tile_content: vec![Vec::new(); MAPWIDTH*MAPHEIGHT],
+            tile_content: vec![Vec::new(); MAPCOUNT],
         };
 
         const MAX_ROOMS: i32 = 38;

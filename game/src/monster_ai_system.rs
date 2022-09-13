@@ -1,9 +1,9 @@
-use specs::{prelude::*, world::EntitiesRes};
+use specs::{prelude::*};
 
-use crate::{components::{Name, Position, WantsToMelee}, map::{Map, self}, state::RunState};
+use crate::{components::{Position, WantsToMelee}, map::{Map}, state::RunState};
 
 use super::{Viewshed, Monster};
-use rltk::{Point, console};
+use rltk::{Point};
 
 pub struct MonsterAI { }
 
@@ -32,7 +32,7 @@ impl<'a> System<'a> for MonsterAI {
             mut wants_to_melee
         ) = data;
 
-        if *runstate != RunState::Running { 
+        if *runstate != RunState::MonsterTurn { 
             return; 
         }
 

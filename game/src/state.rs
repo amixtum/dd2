@@ -20,7 +20,8 @@ use super::components::Renderable;
 pub enum RunState {
     AwaitingInput,
     PreRun,
-    Running,
+    PlayerTurn,
+    MonsterTurn,
 }
 
 pub struct State {
@@ -29,25 +30,32 @@ pub struct State {
 }
 
 impl State {
-    pub fn run_systems(&mut self) {
+    pub fn run_systems_player(&mut self) {
         let mut vis = VisibilitySystem{};
-        let mut monster_ai = MonsterAI{};
         let mut melee_system = MeleeCombatSystem{};
         let mut dmg_system = DamageSystem{};
         let mut map_index = MapIndexingSystem{};
-
-        // run the visibility system on the World
 
         vis.run_now(&self.ecs);
 
         map_index.run_now(&self.ecs);
 
-        monster_ai.run_now(&self.ecs);
-
         melee_system.run_now(&self.ecs);
         dmg_system.run_now(&self.ecs);
 
+        // update the state of the world
+        self.ecs.maintain();
+    }
+    pub fn run_systems_monsters(&mut self) {
+        let mut vis = VisibilitySystem{};
+        let mut monster_ai = MonsterAI{};
+        let mut map_index = MapIndexingSystem{};
 
+        vis.run_now(&self.ecs);
+
+        monster_ai.run_now(&self.ecs);
+
+        map_index.run_now(&self.ecs);
 
         // update the state of the world
         self.ecs.maintain();
@@ -64,17 +72,22 @@ impl GameState for State {
 
         match newrunstate {
             RunState::PreRun => {
-                self.run_systems();
+                self.run_systems_player();
                 newrunstate = RunState::AwaitingInput;
             },
             RunState::AwaitingInput => {
                 newrunstate = player_input(self, ctx);
             },
-            RunState::Running => {
-                self.run_systems();
+            RunState::PlayerTurn => {
+                self.run_systems_player();
+                damage_system::delete_dead(&mut self.ecs);
+                newrunstate = RunState::MonsterTurn;
+            },
+            RunState::MonsterTurn => {
+                self.run_systems_monsters();
                 damage_system::delete_dead(&mut self.ecs);
                 newrunstate = RunState::AwaitingInput;
-            },
+            }
         }
 
         {
@@ -82,7 +95,7 @@ impl GameState for State {
             *runwriter = newrunstate;
         }
 
-        if !self.has_drawn || newrunstate == RunState::Running {
+        if !self.has_drawn || newrunstate == RunState::PlayerTurn || newrunstate == RunState::MonsterTurn {
             self.has_drawn = true;
 
             // clear screen

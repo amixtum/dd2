@@ -100,5 +100,5 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
         }
     }
 
-    RunState::Running
+    RunState::PlayerTurn
 }
