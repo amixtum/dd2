@@ -2,7 +2,11 @@ use rltk::{GameState, Rltk};
 
 use specs::prelude::*;
 
-use crate::map::{TileType, Map};
+use crate::damage_system::DamageSystem;
+use crate::melee_combat_system::MeleeCombatSystem;
+use crate::{damage_system};
+use crate::map::{Map};
+use crate::map_indexing_system::MapIndexingSystem;
 use crate::monster_ai_system::MonsterAI;
 use crate::player::Player;
 use crate::components::Viewshed;
@@ -12,9 +16,15 @@ use super::player::player_input;
 use super::components::Position;
 use super::components::Renderable;
 
+#[derive(PartialEq, Clone, Copy)]
+pub enum RunState {
+    AwaitingInput,
+    PreRun,
+    Running,
+}
+
 pub struct State {
     pub ecs: World,
-    pub needs_redraw: bool,
     pub has_drawn: bool,
 }
 
@@ -22,10 +32,22 @@ impl State {
     pub fn run_systems(&mut self) {
         let mut vis = VisibilitySystem{};
         let mut monster_ai = MonsterAI{};
+        let mut melee_system = MeleeCombatSystem{};
+        let mut dmg_system = DamageSystem{};
+        let mut map_index = MapIndexingSystem{};
 
         // run the visibility system on the World
+
         vis.run_now(&self.ecs);
+
+        map_index.run_now(&self.ecs);
+
         monster_ai.run_now(&self.ecs);
+
+        melee_system.run_now(&self.ecs);
+        dmg_system.run_now(&self.ecs);
+
+
 
         // update the state of the world
         self.ecs.maintain();
@@ -34,20 +56,37 @@ impl State {
 
 impl GameState for State {
     fn tick(&mut self, ctx: &mut Rltk) {
-        self.needs_redraw = false;
-
-        // this sets needs redraw
-        player_input(self, ctx);
-
-        if !self.has_drawn {
-            self.needs_redraw = true;
+        let mut newrunstate; 
+        {
+            let runstate = self.ecs.fetch::<RunState>();
+            newrunstate = *runstate;
         }
 
-        if self.needs_redraw {
+        match newrunstate {
+            RunState::PreRun => {
+                self.run_systems();
+                newrunstate = RunState::AwaitingInput;
+            },
+            RunState::AwaitingInput => {
+                newrunstate = player_input(self, ctx);
+            },
+            RunState::Running => {
+                self.run_systems();
+                damage_system::delete_dead(&mut self.ecs);
+                newrunstate = RunState::AwaitingInput;
+            },
+        }
+
+        {
+            let mut runwriter = self.ecs.write_resource::<RunState>();
+            *runwriter = newrunstate;
+        }
+
+        if !self.has_drawn || newrunstate == RunState::Running {
+            self.has_drawn = true;
+
             // clear screen
             ctx.cls();
-
-            self.run_systems();
 
             Map::draw_map(&self.ecs, ctx);
 

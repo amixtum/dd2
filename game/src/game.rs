@@ -4,7 +4,10 @@ use rltk::{Point, RGB, BTerm, BError, FontCharType, RandomNumberGenerator};
 
 use specs::prelude::*;
 
+use crate::components::BlocksTile;
+use crate::components::CombatStats;
 use crate::components::Monster;
+use crate::components::Name;
 use crate::map::Map;
 use crate::state::State;
 use crate::components::Position;
@@ -29,7 +32,6 @@ impl Game {
             Ok(context) => {
                 let state = State {
                     ecs: World::new(),
-                    needs_redraw: false,
                     has_drawn: false,
                 };
 
@@ -56,7 +58,7 @@ impl Game
         self.state.ecs.register::<T>();
     }
 
-    pub fn spawn_player(&mut self, x: i32, y: i32) {
+    pub fn spawn_player(&mut self, x: i32, y: i32) -> Entity {
         self.state.ecs.create_entity()
             .with(Position {point: Point::from_tuple((x, y))})
             .with(Renderable {
@@ -69,18 +71,32 @@ impl Game
                 visible_tiles: HashSet::new(),
                 range: 8,
             })
-            .build();
+            .with(Name {name: "Player".to_string()})
+            .with(CombatStats {
+                max_hp: 30,
+                hp: 30,
+                defense: 2,
+                power: 5,
+            })
+            .build()
     }
 
     pub fn spawn_monsters(&mut self, map: &Map) {
         let mut rng = RandomNumberGenerator::new();
-        for room in map.rooms.iter().skip(1) {
-            let center = room.center();
+        for room in map.rooms.iter().skip(1).enumerate() {
+            let center = room.1.center();
             let glyph: FontCharType;
+            let name: String;
             let roll = rng.roll_dice(1, 2);
             match roll  {
-                1 => {glyph = rltk::to_cp437('g');},
-                _ => {glyph = rltk::to_cp437('o');},
+                1 => {
+                    glyph = rltk::to_cp437('g'); 
+                    name = "Goblin".to_string();
+                },
+                _ => {
+                    glyph = rltk::to_cp437('o'); 
+                    name = "Orc".to_string();
+                },
             }
             self.state.ecs.create_entity()
                 .with(Position {point: center})
@@ -91,6 +107,14 @@ impl Game
                 })
                 .with(Viewshed {visible_tiles: HashSet::new(), range: 8})
                 .with(Monster{})
+                .with(Name {name: format!("{}, #{}", &name, room.0)})
+                .with(BlocksTile{})
+                .with(CombatStats {
+                    max_hp: 16,
+                    hp: 16,
+                    defense: 1,
+                    power: 4,
+                })
                 .build();
         }
     }
