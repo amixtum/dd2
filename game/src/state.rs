@@ -3,13 +3,15 @@ use rltk::{GameState, Rltk, Point};
 use specs::prelude::*;
 
 use crate::damage_system::DamageSystem;
+use crate::inventory_system::{ItemCollectionSystem, PotionSystem};
+use crate::item_drop_system::ItemDropSystem;
 use crate::melee_combat_system::MeleeCombatSystem;
 use crate::{damage_system, gui};
 use crate::map::{Map};
 use crate::map_indexing_system::MapIndexingSystem;
 use crate::monster_ai_system::MonsterAI;
 use crate::player::{Player, look_mode_input};
-use crate::components::Viewshed;
+use crate::components::{Viewshed, WantsToDrinkPotion, WantsToDropItem};
 use crate::visibility_system::VisibilitySystem;
 
 use super::player::player_input;
@@ -24,6 +26,8 @@ pub enum RunState {
     MonsterTurn,
     Looking,
     CleanupTooltips,
+    ShowInventory,
+    ShowDropItem,
 }
 
 pub struct State {
@@ -39,11 +43,15 @@ impl State {
         let mut melee_system = MeleeCombatSystem{};
         let mut dmg_system = DamageSystem{};
         let mut map_index = MapIndexingSystem{};
+        let mut pickup = ItemCollectionSystem{};
+        let mut drop_system = ItemDropSystem{};
+        let mut potion_system = PotionSystem{};
 
+        potion_system.run_now(&self.ecs);
+        pickup.run_now(&self.ecs);
+        drop_system.run_now(&self.ecs);
         vis.run_now(&self.ecs);
-
         map_index.run_now(&self.ecs);
-
         melee_system.run_now(&self.ecs);
         dmg_system.run_now(&self.ecs);
 
@@ -56,9 +64,7 @@ impl State {
         let mut map_index = MapIndexingSystem{};
 
         vis.run_now(&self.ecs);
-
         monster_ai.run_now(&self.ecs);
-
         map_index.run_now(&self.ecs);
 
         // update the state of the world
@@ -112,8 +118,42 @@ impl GameState for State {
             RunState::CleanupTooltips => {
                 self.has_drawn = false;
                 newrunstate = RunState::AwaitingInput;
-            }
+            },
+            RunState::ShowInventory => {
+                let result = gui::show_inventory(self, ctx);
 
+                match result.0 {
+                    gui::ItemMenuResult::Cancel => {
+                        newrunstate = RunState::AwaitingInput;
+                        self.has_drawn = false;
+                    },
+                    gui::ItemMenuResult::NoResponse => {},
+                    gui::ItemMenuResult::Selected => {
+                        let item_entity = result.1.unwrap();
+                        let mut intent = self.ecs.write_storage::<WantsToDrinkPotion>();
+                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToDrinkPotion { item: item_entity }).expect("Unable to insert intent to drink potion");
+                        newrunstate = RunState::PlayerTurn;
+                        self.has_drawn = false;
+                    }
+                }
+            },
+            RunState::ShowDropItem => {
+                let result = gui::drop_item_menu(self, ctx);
+                match result.0 {
+                    gui::ItemMenuResult::Cancel => {
+                        newrunstate = RunState::AwaitingInput;
+                        self.has_drawn = false;
+                    },
+                    gui::ItemMenuResult::NoResponse => {},
+                    gui::ItemMenuResult::Selected => {
+                        let item_entity = result.1.unwrap();
+                        let mut intent = self.ecs.write_storage::<WantsToDropItem>();
+                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToDropItem { item: item_entity }).expect("Unable to insert intent to drop item");
+                        newrunstate = RunState::PlayerTurn;
+                        self.has_drawn = false;
+                    }
+                }
+            }
         }
 
         {
@@ -154,12 +194,17 @@ impl GameState for State {
 
             let positions = self.ecs.read_storage::<Position>();
             let renderables = self.ecs.read_storage::<Renderable>();
+            let mut data = (&positions, &renderables).join().collect::<Vec<_>>();
+            data.sort_by(|&a, &b| {
+                b.1.render_order.cmp(&a.1.render_order)
+            });
+
             let viewsheds = self.ecs.read_storage::<Viewshed>();
             let players = self.ecs.read_storage::<Player>();
 
             for (_player, viewshed) in (&players, &viewsheds).join() {
                 // draw all objects that have both a position and renderable component
-                for (pos, render) in (&positions, &renderables).join() {
+                for (pos, render) in data.iter() {
                     if viewshed.visible_tiles.contains(&pos.point) {
                         ctx.set(pos.point.x, pos.point.y, render.fg, render.bg, render.glyph);
                     }

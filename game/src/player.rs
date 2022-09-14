@@ -5,7 +5,8 @@ use rltk::{VirtualKeyCode, Rltk, Point};
 use specs::prelude::*;
 use specs_derive::Component;
 
-use crate::components::{CombatStats, WantsToMelee, Viewshed};
+use crate::components::{CombatStats, WantsToMelee, Viewshed, Item, WantsToPickUpItem};
+use crate::gamelog::GameLog;
 use crate::map::{Map};
 use crate::state::RunState;
 
@@ -56,6 +57,32 @@ pub fn try_move_player(delta_x: i32, delta_y: i32, ecs: &mut World) {
 
 }
 
+fn get_item(ecs: &mut World) {
+    let player_pos = ecs.fetch::<Point>();
+    let player_entity = ecs.fetch::<Entity>();
+    let entities = ecs.entities();
+    let items = ecs.read_storage::<Item>();
+    let positions = ecs.read_storage::<Position>();
+    let mut game_log = ecs.fetch_mut::<GameLog>();
+
+    let mut target_item: Option<Entity> = None;
+    for (item_entity, _item, position) in (&entities, &items, &positions).join() {
+        if position.point == *player_pos {
+            target_item = Some(item_entity);
+        }
+    }
+
+    match target_item {
+        None => {
+            game_log.entries.push("There is nothing here to pickup".to_string());
+        },
+        Some(item) => {
+            let mut pickup = ecs.write_storage::<WantsToPickUpItem>();
+            pickup.insert(*player_entity, WantsToPickUpItem { collected_by: *player_entity, item }).expect("Unable to insert want to pick up");
+        }
+    }
+}
+
 pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
     match ctx.key {
         None => {
@@ -96,6 +123,15 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
             },
             VirtualKeyCode::Semicolon => {
                 return RunState::Looking;
+            },
+            VirtualKeyCode::G => {
+                get_item(&mut gs.ecs);
+            },
+            VirtualKeyCode::I => {
+                return RunState::ShowInventory;
+            }
+            VirtualKeyCode::Minus => {
+                return RunState::ShowDropItem;
             }
             _ => { 
                 return RunState::AwaitingInput;

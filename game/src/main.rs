@@ -10,14 +10,22 @@ pub mod melee_combat_system;
 pub mod damage_system;
 pub mod gui;
 pub mod gamelog;
-
+pub mod spawner;
+pub mod inventory_system;
+pub mod item_drop_system;
 
 use components::BlocksTile;
 use components::CombatStats;
+use components::InBackpack;
+use components::Item;
 use components::Monster;
 use components::Name;
+use components::Potion;
 use components::SufferDamage;
+use components::WantsToDrinkPotion;
+use components::WantsToDropItem;
 use components::WantsToMelee;
+use components::WantsToPickUpItem;
 use gamelog::GameLog;
 use map::Map;
 
@@ -45,12 +53,22 @@ fn main() -> rltk::BError {
             game.register::<CombatStats>();
             game.register::<WantsToMelee>();
             game.register::<SufferDamage>();
+            game.register::<Item>();
+            game.register::<Potion>();
+            game.register::<InBackpack>();
+            game.register::<WantsToPickUpItem>();
+            game.register::<WantsToDrinkPotion>();
+            game.register::<WantsToDropItem>();
 
             let map = Map::new_map_rooms_and_corridors();
 
             let player_pos = map.rooms[0].center();
-            let player = game.spawn_player(player_pos.x, player_pos.y);
-            game.spawn_monsters(&map);
+            let player = spawner::spawn_player(&mut game.state.ecs, player_pos.x, player_pos.y);
+
+            game.state.ecs.insert(rltk::RandomNumberGenerator::new());
+            for room in map.rooms.iter() {
+                spawner::spawn_room(&mut game.state.ecs, room);
+            }
 
             game.state.ecs.insert(RunState::PreRun);
             game.state.ecs.insert(player);
