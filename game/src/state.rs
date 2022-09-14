@@ -11,7 +11,7 @@ use crate::map::{Map};
 use crate::map_indexing_system::MapIndexingSystem;
 use crate::monster_ai_system::MonsterAI;
 use crate::player::{Player, look_mode_input};
-use crate::components::{Viewshed, WantsToUseItem, WantsToDropItem};
+use crate::components::{Viewshed, WantsToUseItem, WantsToDropItem, Ranged};
 use crate::visibility_system::VisibilitySystem;
 
 use super::player::player_input;
@@ -28,6 +28,7 @@ pub enum RunState {
     CleanupTooltips,
     ShowInventory,
     ShowDropItem,
+    ShowTargeting {range: i32, item: Entity},
 }
 
 pub struct State {
@@ -130,10 +131,16 @@ impl GameState for State {
                     gui::ItemMenuResult::NoResponse => {},
                     gui::ItemMenuResult::Selected => {
                         let item_entity = result.1.unwrap();
-                        let mut intent = self.ecs.write_storage::<WantsToUseItem>();
-                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem { item: item_entity }).expect("Unable to insert intent to drink potion");
-                        newrunstate = RunState::PlayerTurn;
-                        self.has_drawn = false;
+                        let ranged_items = self.ecs.read_storage::<Ranged>();
+                        if let Some(ranged_item) = ranged_items.get(item_entity) {
+                            newrunstate = RunState::ShowTargeting { range: ranged_item.range, item: item_entity };
+                        }
+                        else {
+                            let mut intent = self.ecs.write_storage::<WantsToUseItem>();
+                            intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem { item: item_entity }).expect("Unable to insert intent to drink potion");
+                            newrunstate = RunState::PlayerTurn;
+                            self.has_drawn = false;
+                        }
                     }
                 }
             },
@@ -153,6 +160,9 @@ impl GameState for State {
                         self.has_drawn = false;
                     }
                 }
+            },
+            RunState::ShowTargeting { range, item } => {
+                let target = gui::ranged_target(self, ctx, range);
             }
         }
 

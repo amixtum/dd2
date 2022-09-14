@@ -20,7 +20,7 @@ impl Game {
         
         match try_context {
             Ok(mut context) => {
-                context.with_post_scanlines(true);
+                //context.with_post_scanlines(true);
 
                 let state = State {
                     ecs: World::new(),

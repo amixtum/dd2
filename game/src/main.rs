@@ -18,10 +18,12 @@ use components::BlocksTile;
 use components::CombatStats;
 use components::Consumable;
 use components::InBackpack;
+use components::InflictsDamage;
 use components::Item;
 use components::Monster;
 use components::Name;
 use components::ProvidesHealing;
+use components::Ranged;
 use components::SufferDamage;
 use components::WantsToUseItem;
 use components::WantsToDropItem;
@@ -61,6 +63,8 @@ fn main() -> rltk::BError {
             game.register::<WantsToUseItem>();
             game.register::<WantsToDropItem>();
             game.register::<Consumable>();
+            game.register::<Ranged>();
+            game.register::<InflictsDamage>();
 
             let map = Map::new_map_rooms_and_corridors();
 

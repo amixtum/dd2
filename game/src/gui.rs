@@ -278,3 +278,9 @@ pub fn draw_tooltips_xy(ecs: &World, ctx: &mut rltk::Rltk, xc: i32, yc: i32) {
         }
     }
 }
+
+pub fn ranged_target(gs: &mut State, ctx : &mut rltk::Rltk, range: i32) -> (ItemMenuResult, Option<Point>) {
+    let player_entity = gs.ecs.fetch::<Entity>();
+    let player_pos = gs.ecs.fetch::<Point>();
+    let viewsheds = gs.ecs.read_storage::<Viewshed>();
+}
