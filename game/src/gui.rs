@@ -1,7 +1,9 @@
+use std::collections::HashSet;
+
 use rltk::{RGB, Point, VirtualKeyCode};
 use specs::prelude::*;
 
-use crate::{components::{CombatStats, Name, Position, Viewshed, InBackpack}, player::Player, gamelog::GameLog, map::Map, state::State};
+use crate::{components::{CombatStats, Name, Position, Viewshed, InBackpack}, player::{Player}, gamelog::GameLog, map::Map, state::State};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ItemMenuResult {
@@ -279,8 +281,61 @@ pub fn draw_tooltips_xy(ecs: &World, ctx: &mut rltk::Rltk, xc: i32, yc: i32) {
     }
 }
 
-pub fn ranged_target(gs: &mut State, ctx : &mut rltk::Rltk, range: i32) -> (ItemMenuResult, Option<Point>) {
+pub fn ranged_target(gs: &mut State, ctx : &mut rltk::Rltk, cursor: Point, range: i32) -> (ItemMenuResult, Option<Point>) {
     let player_entity = gs.ecs.fetch::<Entity>();
     let player_pos = gs.ecs.fetch::<Point>();
     let viewsheds = gs.ecs.read_storage::<Viewshed>();
+
+    ctx.print_color(5, 0, RGB::named(rltk::YELLOW), RGB::named(rltk::BLACK), "Select Target:");
+
+    let mut available_cells = HashSet::new();
+    if let Some(visible) = viewsheds.get(*player_entity) {
+        for pos in visible.visible_tiles.iter() {
+            let dist = rltk::DistanceAlg::Pythagoras.distance2d(*pos, *player_pos);
+            if dist <= range as f32 {
+                ctx.set_bg(pos.x, pos.y, RGB::named(rltk::BLUE));
+                available_cells.insert(*pos);
+            }
+        }
+    } else {
+        return (ItemMenuResult::Cancel, None);
+    }
+
+    let valid_target = available_cells.contains(&cursor);
+
+    if valid_target {
+        ctx.set_bg(cursor.x, cursor.y, RGB::named(rltk::CYAN));
+        match ctx.key {
+            None => {},
+            Some(key) => {
+                match key {
+                    VirtualKeyCode::Return => {
+                        return (ItemMenuResult::Selected, Some(cursor));
+                    }
+                    VirtualKeyCode::Escape => {
+                        return (ItemMenuResult::Cancel, None);
+                    }
+                    _ => {},
+                }
+            }
+        }
+    }
+
+    else {
+        ctx.set_bg(cursor.x, cursor.y, RGB::named(rltk::RED));
+        match ctx.key {
+            None => {},
+            Some(key) => {
+                match key {
+                    VirtualKeyCode::Escape |
+                    VirtualKeyCode::Return => {
+                        return (ItemMenuResult::Cancel, None);
+                    },
+                    _ => {},
+                }
+            }
+        }
+    }
+
+    (ItemMenuResult::NoResponse, None)
 }

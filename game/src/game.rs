@@ -19,7 +19,7 @@ impl Game {
             .build();
         
         match try_context {
-            Ok(mut context) => {
+            Ok(context) => {
                 //context.with_post_scanlines(true);
 
                 let state = State {

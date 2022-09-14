@@ -3,6 +3,7 @@ use rltk::{GameState, Rltk, Point};
 use specs::prelude::*;
 
 use crate::damage_system::DamageSystem;
+use crate::gui::ItemMenuResult;
 use crate::inventory_system::{ItemCollectionSystem, ItemUseSystem};
 use crate::item_drop_system::ItemDropSystem;
 use crate::melee_combat_system::MeleeCombatSystem;
@@ -10,7 +11,7 @@ use crate::{damage_system, gui};
 use crate::map::{Map};
 use crate::map_indexing_system::MapIndexingSystem;
 use crate::monster_ai_system::MonsterAI;
-use crate::player::{Player, look_mode_input};
+use crate::player::{Player, look_mode_input, ranged_targeting_input};
 use crate::components::{Viewshed, WantsToUseItem, WantsToDropItem, Ranged};
 use crate::visibility_system::VisibilitySystem;
 
@@ -28,7 +29,7 @@ pub enum RunState {
     CleanupTooltips,
     ShowInventory,
     ShowDropItem,
-    ShowTargeting {range: i32, item: Entity},
+    ShowTargeting {range: i32, item: Entity, cursor: Point},
 }
 
 pub struct State {
@@ -133,11 +134,13 @@ impl GameState for State {
                         let item_entity = result.1.unwrap();
                         let ranged_items = self.ecs.read_storage::<Ranged>();
                         if let Some(ranged_item) = ranged_items.get(item_entity) {
-                            newrunstate = RunState::ShowTargeting { range: ranged_item.range, item: item_entity };
+                            let player_pos = self.ecs.fetch::<Point>();
+                            newrunstate = RunState::ShowTargeting { range: ranged_item.range, item: item_entity, cursor: *player_pos};
+                            self.has_drawn = false;
                         }
                         else {
                             let mut intent = self.ecs.write_storage::<WantsToUseItem>();
-                            intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem { item: item_entity }).expect("Unable to insert intent to drink potion");
+                            intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem { item: item_entity, target: None }).expect("Unable to insert intent to drink potion");
                             newrunstate = RunState::PlayerTurn;
                             self.has_drawn = false;
                         }
@@ -161,8 +164,29 @@ impl GameState for State {
                     }
                 }
             },
-            RunState::ShowTargeting { range, item } => {
-                let target = gui::ranged_target(self, ctx, range);
+            RunState::ShowTargeting { range, item , cursor} => {
+                let last_cursor = cursor;
+                let cursor = ranged_targeting_input(self, ctx, cursor, range);
+                let target = gui::ranged_target(self, ctx, cursor, range);
+                match target.0 {
+                    ItemMenuResult::NoResponse => {
+                        if last_cursor != cursor {
+                            self.has_drawn = false;
+                        }
+                        newrunstate = RunState::ShowTargeting { range, item, cursor };
+
+                    },
+                    ItemMenuResult::Cancel => {
+                        newrunstate = RunState::AwaitingInput;
+                        self.has_drawn = false;
+                    },
+                    ItemMenuResult::Selected => {
+                        let mut intent = self.ecs.write_storage::<WantsToUseItem>();
+                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem { item, target: target.1 }).expect("Unable to insert intent to use ranged item");
+                        newrunstate = RunState::PlayerTurn;
+                        self.has_drawn = false;
+                    }
+                }
             }
         }
 
@@ -227,6 +251,5 @@ impl GameState for State {
                 gui::draw_tooltips_xy(&self.ecs, ctx, self.look_cursor.0, self.look_cursor.1);
             }
         }
-
     }
 }

@@ -1,6 +1,6 @@
 use specs::prelude::*;
 
-use crate::{gamelog::GameLog, components::{WantsToPickUpItem, Position, Name, InBackpack, ProvidesHealing, WantsToUseItem, CombatStats, Consumable}};
+use crate::{gamelog::GameLog, components::{WantsToPickUpItem, Position, Name, InBackpack, ProvidesHealing, WantsToUseItem, CombatStats, Consumable, InflictsDamage, SufferDamage}, map::Map};
 
 pub struct ItemCollectionSystem {}
 
@@ -41,6 +41,7 @@ pub struct ItemUseSystem {}
 
 impl<'a> System<'a> for ItemUseSystem {
     type SystemData = (
+        ReadExpect<'a, Map>,
         ReadExpect<'a, Entity>,
         WriteExpect<'a, GameLog>,
         Entities<'a>,
@@ -49,10 +50,13 @@ impl<'a> System<'a> for ItemUseSystem {
         ReadStorage<'a, Consumable>,
         ReadStorage<'a, ProvidesHealing>,
         WriteStorage<'a, CombatStats>,
+        ReadStorage<'a, InflictsDamage>,
+        WriteStorage<'a, SufferDamage>
     );
 
     fn run(&mut self, data: Self::SystemData) {
         let (
+            map,
             player_entity,
             mut log,
             entities,
@@ -61,6 +65,8 @@ impl<'a> System<'a> for ItemUseSystem {
             consumables,
             healing,
             mut stats,
+            inflict_damage,
+            mut suffer_damage,
         ) = data;
         
         for (entity, use_item, mut stats) in (&entities, &use_item_intents, &mut stats).join() {
@@ -71,6 +77,18 @@ impl<'a> System<'a> for ItemUseSystem {
                         log.entries.push(
                             format!("You drink the {}, healing {} hp", names.get(use_item.item).unwrap().name, healing.heal_amount)
                         );
+                    }
+                } else if let Some(damage) = inflict_damage.get(use_item.item) {
+                    if let Some(target_pos) = use_item.target {
+                        let idx = map.xy_flat(target_pos.x, target_pos.y);
+                        for mob in map.tile_content[idx].iter() {
+                            SufferDamage::new_damage(&mut suffer_damage, *mob, damage.damage);
+                            if entity == *player_entity {
+                                let mob_name = &names.get(*mob).unwrap().name;
+                                let item_name = &names.get(use_item.item).unwrap().name;
+                                log.entries.push(format!("You use {} on {}, inflicting {} damage.", item_name, mob_name, damage.damage));
+                            }
+                        }
                     }
                 }
 
