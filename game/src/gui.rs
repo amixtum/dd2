@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use rltk::{RGB, Point, VirtualKeyCode};
 use specs::prelude::*;
 
-use crate::{components::{CombatStats, Name, Position, Viewshed, InBackpack}, player::{Player}, gamelog::GameLog, map::Map, state::State};
+use crate::{components::{CombatStats, Name, Position, Viewshed, InBackpack, AreaOfEffect, WantsToUseItem}, player::{Player}, gamelog::GameLog, map::Map, state::State};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ItemMenuResult {
@@ -282,9 +282,11 @@ pub fn draw_tooltips_xy(ecs: &World, ctx: &mut rltk::Rltk, xc: i32, yc: i32) {
 }
 
 pub fn ranged_target(gs: &mut State, ctx : &mut rltk::Rltk, cursor: Point, range: i32) -> (ItemMenuResult, Option<Point>) {
+    let map = gs.ecs.fetch::<Map>();
     let player_entity = gs.ecs.fetch::<Entity>();
     let player_pos = gs.ecs.fetch::<Point>();
     let viewsheds = gs.ecs.read_storage::<Viewshed>();
+
 
     ctx.print_color(5, 0, RGB::named(rltk::YELLOW), RGB::named(rltk::BLACK), "Select Target:");
 
@@ -300,6 +302,16 @@ pub fn ranged_target(gs: &mut State, ctx : &mut rltk::Rltk, cursor: Point, range
     } else {
         return (ItemMenuResult::Cancel, None);
     }
+
+    let backpack = gs.ecs.read_storage::<InBackpack>(); 
+    let aoe = gs.ecs.read_storage::<AreaOfEffect>();
+
+    /*
+    let aoe_tiles = rltk::field_of_view(cursor, , &*map);
+    for tile in aoe_tiles.iter() {
+        ctx.set_bg(tile.x, tile.y, RGB::named(rltk::ORANGE));
+    }
+    */
 
     let valid_target = available_cells.contains(&cursor);
 
@@ -322,7 +334,7 @@ pub fn ranged_target(gs: &mut State, ctx : &mut rltk::Rltk, cursor: Point, range
     }
 
     else {
-        ctx.set_bg(cursor.x, cursor.y, RGB::named(rltk::RED));
+        ctx.set_bg(cursor.x, cursor.y, RGB::named(rltk::GREY));
         match ctx.key {
             None => {},
             Some(key) => {
