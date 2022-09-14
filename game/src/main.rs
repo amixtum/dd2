@@ -14,6 +14,7 @@ pub mod spawner;
 pub mod inventory_system;
 pub mod item_drop_system;
 
+use components::AreaOfEffect;
 use components::BlocksTile;
 use components::CombatStats;
 use components::Consumable;
@@ -65,6 +66,7 @@ fn main() -> rltk::BError {
             game.register::<Consumable>();
             game.register::<Ranged>();
             game.register::<InflictsDamage>();
+            game.register::<AreaOfEffect>();
 
             let map = Map::new_map_rooms_and_corridors();
 
