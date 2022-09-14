@@ -68,7 +68,7 @@ impl SufferDamage {
 pub struct Item {}
 
 #[derive(Component, Debug)]
-pub struct Potion {
+pub struct ProvidesHealing {
     pub heal_amount: i32,
 }
 
@@ -84,7 +84,7 @@ pub struct WantsToPickUpItem {
 }
 
 #[derive(Component, Debug)]
-pub struct WantsToDrinkPotion {
+pub struct WantsToUseItem {
     pub item: Entity,
 }
 
@@ -92,3 +92,8 @@ pub struct WantsToDrinkPotion {
 pub struct WantsToDropItem {
     pub item: Entity,
 }
+
+// flag component => we delete it when we use it
+#[derive(Component, Debug)]
+pub struct Consumable {}
+

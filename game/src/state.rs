@@ -3,7 +3,7 @@ use rltk::{GameState, Rltk, Point};
 use specs::prelude::*;
 
 use crate::damage_system::DamageSystem;
-use crate::inventory_system::{ItemCollectionSystem, PotionSystem};
+use crate::inventory_system::{ItemCollectionSystem, ItemUseSystem};
 use crate::item_drop_system::ItemDropSystem;
 use crate::melee_combat_system::MeleeCombatSystem;
 use crate::{damage_system, gui};
@@ -11,7 +11,7 @@ use crate::map::{Map};
 use crate::map_indexing_system::MapIndexingSystem;
 use crate::monster_ai_system::MonsterAI;
 use crate::player::{Player, look_mode_input};
-use crate::components::{Viewshed, WantsToDrinkPotion, WantsToDropItem};
+use crate::components::{Viewshed, WantsToUseItem, WantsToDropItem};
 use crate::visibility_system::VisibilitySystem;
 
 use super::player::player_input;
@@ -45,7 +45,7 @@ impl State {
         let mut map_index = MapIndexingSystem{};
         let mut pickup = ItemCollectionSystem{};
         let mut drop_system = ItemDropSystem{};
-        let mut potion_system = PotionSystem{};
+        let mut potion_system = ItemUseSystem{};
 
         potion_system.run_now(&self.ecs);
         pickup.run_now(&self.ecs);
@@ -130,8 +130,8 @@ impl GameState for State {
                     gui::ItemMenuResult::NoResponse => {},
                     gui::ItemMenuResult::Selected => {
                         let item_entity = result.1.unwrap();
-                        let mut intent = self.ecs.write_storage::<WantsToDrinkPotion>();
-                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToDrinkPotion { item: item_entity }).expect("Unable to insert intent to drink potion");
+                        let mut intent = self.ecs.write_storage::<WantsToUseItem>();
+                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem { item: item_entity }).expect("Unable to insert intent to drink potion");
                         newrunstate = RunState::PlayerTurn;
                         self.has_drawn = false;
                     }

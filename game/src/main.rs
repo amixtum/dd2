@@ -16,13 +16,14 @@ pub mod item_drop_system;
 
 use components::BlocksTile;
 use components::CombatStats;
+use components::Consumable;
 use components::InBackpack;
 use components::Item;
 use components::Monster;
 use components::Name;
-use components::Potion;
+use components::ProvidesHealing;
 use components::SufferDamage;
-use components::WantsToDrinkPotion;
+use components::WantsToUseItem;
 use components::WantsToDropItem;
 use components::WantsToMelee;
 use components::WantsToPickUpItem;
@@ -54,11 +55,12 @@ fn main() -> rltk::BError {
             game.register::<WantsToMelee>();
             game.register::<SufferDamage>();
             game.register::<Item>();
-            game.register::<Potion>();
+            game.register::<ProvidesHealing>();
             game.register::<InBackpack>();
             game.register::<WantsToPickUpItem>();
-            game.register::<WantsToDrinkPotion>();
+            game.register::<WantsToUseItem>();
             game.register::<WantsToDropItem>();
+            game.register::<Consumable>();
 
             let map = Map::new_map_rooms_and_corridors();
 
