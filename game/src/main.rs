@@ -78,7 +78,9 @@ fn main() -> rltk::BError {
                 spawner::spawn_room(&mut game.state.ecs, room);
             }
 
-            game.state.ecs.insert(RunState::MainMenu { menu_selection: gui::MainMenuSelection::NewGame });
+            game.state.ecs.insert(RunState::MainMenu {
+                menu_selection: gui::MainMenuSelection::NewGame,
+            });
             game.state.ecs.insert(player);
             game.state.ecs.insert(map);
             game.state.ecs.insert(player_pos);
