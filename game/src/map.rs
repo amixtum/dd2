@@ -12,7 +12,7 @@ pub enum TileType {
 }
 
 pub const MAPWIDTH: usize = 80;
-pub const MAPHEIGHT: usize = 50;
+pub const MAPHEIGHT: usize = 50 - 6;
 pub const MAPCOUNT: usize = MAPHEIGHT * MAPWIDTH;
 
 pub struct Map {

@@ -288,7 +288,7 @@ pub fn ranged_target(gs: &mut State, ctx : &mut rltk::Rltk, cursor: Point, range
     let viewsheds = gs.ecs.read_storage::<Viewshed>();
 
 
-    ctx.print_color(5, 0, RGB::named(rltk::YELLOW), RGB::named(rltk::BLACK), "Select Target:");
+    ctx.print_color(5, 0, RGB::named(rltk::YELLOW), RGB::named(rltk::BLACK), "Press Enter to select:");
 
     let mut available_cells = HashSet::new();
     if let Some(visible) = viewsheds.get(*player_entity) {
