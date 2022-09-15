@@ -1,9 +1,14 @@
 use rltk::console;
 use specs::prelude::*;
 
-use crate::{components::{CombatStats, SufferDamage, Position, Name}, player::Player, map::Map, gamelog::GameLog};
+use crate::{
+    components::{CombatStats, Name, Position, SufferDamage},
+    gamelog::GameLog,
+    map::Map,
+    player::Player,
+};
 
-pub struct DamageSystem { }
+pub struct DamageSystem {}
 
 impl<'a> System<'a> for DamageSystem {
     type SystemData = (
@@ -57,5 +62,5 @@ pub fn unblock_dead(ecs: &mut World, entity: &Entity) {
     let positions = ecs.read_storage::<Position>();
     if let Some(pos) = positions.get(*entity) {
         map.blocked_tiles.remove(&pos.point);
-    }   
+    }
 }

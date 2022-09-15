@@ -1,7 +1,7 @@
-use std::{collections::HashSet};
+use std::collections::HashSet;
 
-use rltk::{RGB, Rect, Point, RandomNumberGenerator, Algorithm2D, BaseMap};
-use specs::{World, WorldExt, Join, Entity};
+use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rect, RGB};
+use specs::{Entity, Join, World, WorldExt};
 
 use crate::{components::Viewshed, player::Player};
 
@@ -63,8 +63,6 @@ impl Map {
 
         !self.blocked_tiles.contains(&Point::new(x, y))
     }
-
-
 }
 
 impl Map {
@@ -82,24 +80,46 @@ impl Map {
                 if viewshed.visible_tiles.contains(&point) {
                     match tile {
                         TileType::Floor => {
-                            ctx.set(x, y, RGB::from_u8(127, 127, 127), RGB::from_u8(0, 0, 0), rltk::to_cp437('.'));
-                        },
+                            ctx.set(
+                                x,
+                                y,
+                                RGB::from_u8(127, 127, 127),
+                                RGB::from_u8(0, 0, 0),
+                                rltk::to_cp437('.'),
+                            );
+                        }
                         TileType::Wall => {
-                            ctx.set(x, y, RGB::from_u8(0, 255, 0), RGB::from_u8(0, 0, 0), rltk::to_cp437('#'));
-                        },
+                            ctx.set(
+                                x,
+                                y,
+                                RGB::from_u8(0, 255, 0),
+                                RGB::from_u8(0, 0, 0),
+                                rltk::to_cp437('#'),
+                            );
+                        }
                     }
-                }
-                else if map.revealed_tiles.contains(&point) {
+                } else if map.revealed_tiles.contains(&point) {
                     match tile {
                         TileType::Floor => {
-                            ctx.set(x, y, RGB::from_u8(64, 64, 64), RGB::from_u8(0, 0, 0), rltk::to_cp437('.'));
-                        },
+                            ctx.set(
+                                x,
+                                y,
+                                RGB::from_u8(64, 64, 64),
+                                RGB::from_u8(0, 0, 0),
+                                rltk::to_cp437('.'),
+                            );
+                        }
                         TileType::Wall => {
-                            ctx.set(x, y, RGB::from_u8(64, 64, 64), RGB::from_u8(0, 0, 0), rltk::to_cp437('#'));
-                        },
+                            ctx.set(
+                                x,
+                                y,
+                                RGB::from_u8(64, 64, 64),
+                                RGB::from_u8(0, 0, 0),
+                                rltk::to_cp437('#'),
+                            );
+                        }
                     }
                 }
-
 
                 x += 1;
                 if x >= map.width {
@@ -171,7 +191,7 @@ impl Map {
                         map.apply_horizontal_tunnel(prev_center.x, new_center.x, prev_center.y);
                         map.apply_vertical_tunnel(new_center.x, prev_center.y, new_center.y);
                     } else {
-                        map.apply_vertical_tunnel( prev_center.x, prev_center.y, new_center.y);
+                        map.apply_vertical_tunnel(prev_center.x, prev_center.y, new_center.y);
                         map.apply_horizontal_tunnel(prev_center.x, new_center.x, new_center.y);
                     }
                 }

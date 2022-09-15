@@ -1,9 +1,11 @@
-use rltk::{BTerm, BError};
+use rltk::{BError, BTerm};
 
 use specs::prelude::*;
 
-use crate::{state::State, map::{MAPWIDTH, MAPHEIGHT}};
-
+use crate::{
+    map::{MAPHEIGHT, MAPWIDTH},
+    state::State,
+};
 
 pub struct Game {
     pub context: BTerm,
@@ -18,7 +20,7 @@ impl Game {
             .with_dimensions(MAPWIDTH * 2, MAPHEIGHT * 2)
             .with_title("Roguelike Tutorial")
             .build();
-        
+
         match try_context {
             Ok(context) => {
                 //context.with_post_scanlines(true);
@@ -30,11 +32,8 @@ impl Game {
                     last_mouse_position: (-1, -1),
                 };
 
-                Ok(Game {
-                    context,
-                    state,
-                })
-            },
+                Ok(Game { context, state })
+            }
             Err(err) => Err(Err(err)),
         }
     }
@@ -44,14 +43,12 @@ impl Game {
     }
 }
 
-impl Game
-{
-    pub fn register<T>(&mut self) 
-    where T: Component,
-          T::Storage: Default,
+impl Game {
+    pub fn register<T>(&mut self)
+    where
+        T: Component,
+        T::Storage: Default,
     {
         self.state.ecs.register::<T>();
     }
-
-
 }

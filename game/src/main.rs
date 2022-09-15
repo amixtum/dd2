@@ -1,18 +1,18 @@
 pub mod components;
-pub mod player;
-pub mod state;
-pub mod game;
-pub mod map;
-pub mod visibility_system;
-pub mod monster_ai_system;
-pub mod map_indexing_system;
-pub mod melee_combat_system;
 pub mod damage_system;
-pub mod gui;
+pub mod game;
 pub mod gamelog;
-pub mod spawner;
+pub mod gui;
 pub mod inventory_system;
 pub mod item_drop_system;
+pub mod map;
+pub mod map_indexing_system;
+pub mod melee_combat_system;
+pub mod monster_ai_system;
+pub mod player;
+pub mod spawner;
+pub mod state;
+pub mod visibility_system;
 
 use components::AreaOfEffect;
 use components::BlocksTile;
@@ -26,18 +26,18 @@ use components::Name;
 use components::ProvidesHealing;
 use components::Ranged;
 use components::SufferDamage;
-use components::WantsToUseItem;
 use components::WantsToDropItem;
 use components::WantsToMelee;
 use components::WantsToPickUpItem;
+use components::WantsToUseItem;
 use gamelog::GameLog;
 use map::Map;
 
 use components::Position;
 use components::Renderable;
-use player::*;
-use game::Game;
 use components::Viewshed;
+use game::Game;
+use player::*;
 use state::RunState;
 
 //use std::env;
@@ -82,12 +82,13 @@ fn main() -> rltk::BError {
             game.state.ecs.insert(player);
             game.state.ecs.insert(map);
             game.state.ecs.insert(player_pos);
-            game.state.ecs.insert(GameLog {entries: vec!["Welcome to Dangerous Deliveries".to_string()]});
+            game.state.ecs.insert(GameLog {
+                entries: vec!["Welcome to Dangerous Deliveries".to_string()],
+            });
 
             // move game into this function
             Game::run(game)
-        },
+        }
         Err(err) => err,
     }
-
 }
