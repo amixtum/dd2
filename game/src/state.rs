@@ -167,7 +167,7 @@ impl GameState for State {
             RunState::ShowTargeting { range, item , cursor} => {
                 let last_cursor = cursor;
                 let cursor = ranged_targeting_input(self, ctx, cursor, range);
-                let target = gui::ranged_target(self, ctx, cursor, range);
+                let target = gui::ranged_target(self, ctx, cursor, range, item);
                 match target.0 {
                     ItemMenuResult::NoResponse => {
                         if last_cursor != cursor {

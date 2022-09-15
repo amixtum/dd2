@@ -2,7 +2,7 @@ use rltk::{BTerm, BError};
 
 use specs::prelude::*;
 
-use crate::state::State;
+use crate::{state::State, map::{MAPWIDTH, MAPHEIGHT}};
 
 
 pub struct Game {
@@ -15,6 +15,7 @@ impl Game {
         use rltk::RltkBuilder;
 
         let try_context = RltkBuilder::simple80x50()
+            .with_dimensions(MAPWIDTH * 2, MAPHEIGHT * 2)
             .with_title("Roguelike Tutorial")
             .build();
         
