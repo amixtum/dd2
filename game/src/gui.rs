@@ -8,7 +8,7 @@ use crate::{
     gamelog::GameLog,
     map::Map,
     player::Player,
-    state::State,
+    state::{State, RunState},
 };
 
 #[derive(PartialEq, Clone, Copy)]
@@ -18,12 +18,29 @@ pub enum ItemMenuResult {
     Selected,
 }
 
-pub fn show_inventory(gs: &mut State, ctx: &mut rltk::Rltk) -> (ItemMenuResult, Option<Entity>) {
+#[derive(PartialEq, Clone, Copy)]
+pub enum MainMenuSelection {
+    NewGame,
+    Quit,
+}
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum MainMenuResult {
+    NoSelection {
+        selected: MainMenuSelection,
+    },
+    Selected {
+        selected: MainMenuSelection
+    }
+}
+
+pub fn show_inventory(gs: &mut State, ctx: &mut rltk::Rltk) {
     let player_entity = gs.ecs.fetch::<Entity>();
     let names = gs.ecs.read_storage::<Name>();
     let backpack = gs.ecs.read_storage::<InBackpack>();
     let entities = gs.ecs.entities();
 
+    // count the Items attached to the player's backpack and their Names
     let inventory = (&backpack, &names)
         .join()
         .filter(|item| item.0.owner == *player_entity);
@@ -53,9 +70,8 @@ pub fn show_inventory(gs: &mut State, ctx: &mut rltk::Rltk) -> (ItemMenuResult, 
         "ESCAPE to cancel",
     );
 
-    let mut equippable = Vec::new();
     let mut letter_code_idx = 0;
-    for (entity, _item, name) in (&entities, &backpack, &names)
+    for (_entity, _item, name) in (&entities, &backpack, &names)
         .join()
         .filter(|item| item.1.owner == *player_entity)
     {
@@ -83,9 +99,28 @@ pub fn show_inventory(gs: &mut State, ctx: &mut rltk::Rltk) -> (ItemMenuResult, 
 
         ctx.print(21, y, &name.name.to_string());
 
-        equippable.push(entity);
         y += 1;
         letter_code_idx += 1;
+    }
+}
+
+pub fn process_inventory(gs: &mut State, ctx: &mut rltk::Rltk) -> (ItemMenuResult, Option<Entity>) {
+    let player_entity = gs.ecs.fetch::<Entity>();
+    let backpack = gs.ecs.read_storage::<InBackpack>();
+    let entities = gs.ecs.entities();
+
+    // count the Items attached to the player's backpack and their Names
+    let inventory = (&backpack)
+        .join()
+        .filter(|item| item.owner == *player_entity);
+    let item_count = inventory.count();
+
+    let mut equippable = Vec::new();
+    for (entity, _item) in (&entities, &backpack)
+        .join()
+        .filter(|item| item.1.owner == *player_entity)
+    {
+        equippable.push(entity);
     }
 
     match ctx.key {
@@ -108,7 +143,43 @@ pub fn show_inventory(gs: &mut State, ctx: &mut rltk::Rltk) -> (ItemMenuResult, 
     }
 }
 
-pub fn drop_item_menu(gs: &mut State, ctx: &mut rltk::Rltk) -> (ItemMenuResult, Option<Entity>) {
+pub fn process_drop_item_menu(gs: &mut State, ctx: &mut rltk::Rltk) -> (ItemMenuResult, Option<Entity>) {
+    let player_entity = gs.ecs.fetch::<Entity>();
+    let backpack = gs.ecs.read_storage::<InBackpack>();
+    let entities = gs.ecs.entities();
+
+    let inventory = (&backpack)
+        .join()
+        .filter(|item| item.owner == *player_entity);
+    let count = inventory.count();
+
+    let mut equippable: Vec<Entity> = Vec::new();
+    for (entity, _pack) in (&entities, &backpack)
+        .join()
+        .filter(|item| item.1.owner == *player_entity)
+    {
+        equippable.push(entity);
+    }
+
+    match ctx.key {
+        None => (ItemMenuResult::NoResponse, None),
+        Some(key) => match key {
+            VirtualKeyCode::Escape => (ItemMenuResult::Cancel, None),
+            _ => {
+                let selection = rltk::letter_to_option(key);
+                if selection > -1 && selection < count as i32 {
+                    return (
+                        ItemMenuResult::Selected,
+                        Some(equippable[selection as usize]),
+                    );
+                }
+                (ItemMenuResult::NoResponse, None)
+            }
+        },
+    }
+}
+
+pub fn draw_drop_item_menu(gs: &mut State, ctx: &mut rltk::Rltk) {
     let player_entity = gs.ecs.fetch::<Entity>();
     let names = gs.ecs.read_storage::<Name>();
     let backpack = gs.ecs.read_storage::<InBackpack>();
@@ -143,9 +214,8 @@ pub fn drop_item_menu(gs: &mut State, ctx: &mut rltk::Rltk) -> (ItemMenuResult, 
         "ESCAPE to cancel",
     );
 
-    let mut equippable: Vec<Entity> = Vec::new();
     let mut j = 0;
-    for (entity, _pack, name) in (&entities, &backpack, &names)
+    for (_entity, _pack, name) in (&entities, &backpack, &names)
         .join()
         .filter(|item| item.1.owner == *player_entity)
     {
@@ -172,26 +242,8 @@ pub fn drop_item_menu(gs: &mut State, ctx: &mut rltk::Rltk) -> (ItemMenuResult, 
         );
 
         ctx.print(21, y, &name.name.to_string());
-        equippable.push(entity);
         y += 1;
         j += 1;
-    }
-
-    match ctx.key {
-        None => (ItemMenuResult::NoResponse, None),
-        Some(key) => match key {
-            VirtualKeyCode::Escape => (ItemMenuResult::Cancel, None),
-            _ => {
-                let selection = rltk::letter_to_option(key);
-                if selection > -1 && selection < count as i32 {
-                    return (
-                        ItemMenuResult::Selected,
-                        Some(equippable[selection as usize]),
-                    );
-                }
-                (ItemMenuResult::NoResponse, None)
-            }
-        },
     }
 }
 
@@ -471,7 +523,7 @@ pub fn ranged_target(
     cursor: Point,
     range: i32,
     item: Entity,
-) -> (ItemMenuResult, Option<Point>) {
+) {
     let map = gs.ecs.fetch::<Map>();
     let player_entity = gs.ecs.fetch::<Entity>();
     let player_pos = gs.ecs.fetch::<Point>();
@@ -494,8 +546,6 @@ pub fn ranged_target(
                 available_cells.insert(*pos);
             }
         }
-    } else {
-        return (ItemMenuResult::Cancel, None);
     }
 
     if let Some(aoe) = gs.ecs.read_storage::<AreaOfEffect>().get(item) {
@@ -513,6 +563,36 @@ pub fn ranged_target(
 
     if valid_target {
         ctx.set_bg(cursor.x, cursor.y, RGB::named(rltk::CYAN));
+    } else {
+        ctx.set_bg(cursor.x, cursor.y, RGB::named(rltk::GREY));
+    }
+}
+
+pub fn ranged_target_selection(    
+    gs: &mut State,
+    ctx: &mut rltk::Rltk,
+    cursor: Point,
+    range: i32,
+    ) -> (ItemMenuResult, Option<Point>) {
+    let player_entity = gs.ecs.fetch::<Entity>();
+    let player_pos = gs.ecs.fetch::<Point>();
+    let viewsheds = gs.ecs.read_storage::<Viewshed>();
+
+    let mut available_cells = HashSet::new();
+    if let Some(visible) = viewsheds.get(*player_entity) {
+        for pos in visible.visible_tiles.iter() {
+            let dist = rltk::DistanceAlg::Pythagoras.distance2d(*pos, *player_pos);
+            if dist <= range as f32 {
+                available_cells.insert(*pos);
+            }
+        }
+    } else {
+        return (ItemMenuResult::Cancel, None);
+    }
+
+    let valid_target = available_cells.contains(&cursor);
+
+    if valid_target {
         match ctx.key {
             None => {}
             Some(key) => match key {
@@ -526,7 +606,6 @@ pub fn ranged_target(
             },
         }
     } else {
-        ctx.set_bg(cursor.x, cursor.y, RGB::named(rltk::GREY));
         match ctx.key {
             None => {}
             Some(key) => match key {
@@ -539,4 +618,58 @@ pub fn ranged_target(
     }
 
     (ItemMenuResult::NoResponse, None)
+    }
+
+pub fn draw_main_menu(gs: &State, ctx: &mut rltk::Rltk) {
+    let runstate = gs.ecs.fetch::<RunState>();
+
+    if let RunState::MainMenu { menu_selection } = *runstate {
+        ctx.print_color_centered(15, RGB::named(rltk::YELLOW), RGB::named(rltk::BLACK), "Dangerous Deliveries");
+        if menu_selection == MainMenuSelection::NewGame {
+            ctx.print_color_centered(24, RGB::named(rltk::MAGENTA), RGB::named(rltk::BLACK), "Begin New Game");
+        } else {
+            ctx.print_color_centered(24, RGB::named(rltk::WHITE), RGB::named(rltk::BLACK), "Begin New Game");
+        }
+
+        if menu_selection == MainMenuSelection::Quit {
+            ctx.print_color_centered(26, RGB::named(rltk::MAGENTA), RGB::named(rltk::BLACK), "Quit");
+        } else {
+            ctx.print_color_centered(26, RGB::named(rltk::WHITE), RGB::named(rltk::BLACK), "Quit");
+        }
+    }
+}
+
+pub fn process_main_menu(gs: &mut State, ctx: &mut rltk::Rltk) -> MainMenuResult {
+    let runstate = gs.ecs.fetch::<RunState>();
+
+    if let RunState::MainMenu { menu_selection } = *runstate {
+        match ctx.key {
+            None => return MainMenuResult::NoSelection{ selected: menu_selection },
+            Some(key) => {
+                match key {
+                    VirtualKeyCode::Escape => { return MainMenuResult::NoSelection{ selected: MainMenuSelection::Quit } }
+                    VirtualKeyCode::Up => {
+                        let newselection;
+                        match menu_selection {
+                            MainMenuSelection::NewGame => newselection = MainMenuSelection::Quit,
+                            MainMenuSelection::Quit => newselection = MainMenuSelection::NewGame
+                        }
+                        return MainMenuResult::NoSelection{ selected: newselection }
+                    }
+                    VirtualKeyCode::Down => {
+                        let newselection;
+                        match menu_selection {
+                            MainMenuSelection::NewGame => newselection = MainMenuSelection::Quit,
+                            MainMenuSelection::Quit => newselection = MainMenuSelection::NewGame
+                        }
+                        return MainMenuResult::NoSelection{ selected: newselection }
+                    }
+                    VirtualKeyCode::Return => return MainMenuResult::Selected{ selected : menu_selection },
+                    _ => return MainMenuResult::NoSelection{ selected: menu_selection }
+                }
+            }
+        }
+    }
+
+    MainMenuResult::NoSelection { selected: MainMenuSelection::NewGame }
 }

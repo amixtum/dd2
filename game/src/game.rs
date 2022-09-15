@@ -18,7 +18,7 @@ impl Game {
 
         let try_context = RltkBuilder::simple80x50()
             .with_dimensions(MAPWIDTH * 2, MAPHEIGHT * 2)
-            .with_title("Roguelike Tutorial")
+            .with_title("Dangerous Deliveries")
             .build();
 
         match try_context {
@@ -27,7 +27,10 @@ impl Game {
 
                 let state = State {
                     ecs: World::new(),
-                    has_drawn: false,
+                    map_drawn: false,
+                    redraw_menu: true,
+                    redraw_targeting: true,
+                    draw_inventory: false,
                     look_cursor: (-1, -1),
                     last_mouse_position: (-1, -1),
                 };

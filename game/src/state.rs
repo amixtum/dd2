@@ -28,17 +28,25 @@ pub enum RunState {
     Looking,
     CleanupTooltips,
     ShowInventory,
+    ProcessInventory,
     ShowDropItem,
+    ProcessDropItem,
     ShowTargeting {
         range: i32,
         item: Entity,
         cursor: Point,
     },
+    MainMenu {
+        menu_selection: gui::MainMenuSelection,
+    },
 }
 
 pub struct State {
     pub ecs: World,
-    pub has_drawn: bool,
+    pub map_drawn: bool,
+    pub redraw_menu: bool,
+    pub redraw_targeting: bool,
+    pub draw_inventory: bool,
     pub look_cursor: (i32, i32),
     pub last_mouse_position: (i32, i32),
 }
@@ -92,20 +100,21 @@ impl GameState for State {
             RunState::PreRun => {
                 self.run_systems_player();
                 newrunstate = RunState::AwaitingInput;
-            }
+                self.map_drawn = false;
+            },
             RunState::AwaitingInput => {
                 newrunstate = player_input(self, ctx);
-            }
+            },
             RunState::PlayerTurn => {
                 self.run_systems_player();
                 damage_system::delete_dead(&mut self.ecs);
                 newrunstate = RunState::MonsterTurn;
-            }
+            },
             RunState::MonsterTurn => {
                 self.run_systems_monsters();
                 damage_system::delete_dead(&mut self.ecs);
                 newrunstate = RunState::AwaitingInput;
-            }
+            },
             RunState::Looking => {
                 if self.last_mouse_position.0 == -1 {
                     self.last_mouse_position = ctx.mouse_pos();
@@ -120,20 +129,25 @@ impl GameState for State {
                 let look_input = look_mode_input(self, ctx);
                 newrunstate = look_input.0;
                 self.look_cursor = look_input.1;
-            }
+            },
             RunState::CleanupTooltips => {
-                self.has_drawn = false;
                 newrunstate = RunState::AwaitingInput;
-            }
+                self.map_drawn = false;
+            },
             RunState::ShowInventory => {
-                let result = gui::show_inventory(self, ctx);
+                newrunstate = RunState::ProcessInventory;
+                self.draw_inventory = true;
+            },
+            RunState::ProcessInventory => {
+                let result = gui::process_inventory(self, ctx);
 
                 match result.0 {
                     gui::ItemMenuResult::Cancel => {
                         newrunstate = RunState::AwaitingInput;
-                        self.has_drawn = false;
+                        self.map_drawn = false;
                     }
-                    gui::ItemMenuResult::NoResponse => {}
+                    gui::ItemMenuResult::NoResponse => {
+                    }
                     gui::ItemMenuResult::Selected => {
                         let item_entity = result.1.unwrap();
                         let ranged_items = self.ecs.read_storage::<Ranged>();
@@ -144,7 +158,7 @@ impl GameState for State {
                                 item: item_entity,
                                 cursor: *player_pos,
                             };
-                            self.has_drawn = false;
+                            self.map_drawn = false;
                         } else {
                             let mut intent = self.ecs.write_storage::<WantsToUseItem>();
                             intent
@@ -155,19 +169,23 @@ impl GameState for State {
                                         target: None,
                                     },
                                 )
-                                .expect("Unable to insert intent to drink potion");
+                                .expect("Unable to insert intent to use item");
                             newrunstate = RunState::PlayerTurn;
-                            self.has_drawn = false;
+                            self.map_drawn = false;
                         }
                     }
                 }
-            }
+            },
             RunState::ShowDropItem => {
-                let result = gui::drop_item_menu(self, ctx);
+                gui::draw_drop_item_menu(self, ctx);
+                newrunstate = RunState::ProcessDropItem;
+            },
+            RunState::ProcessDropItem => {
+                let result = gui::process_drop_item_menu(self, ctx);
                 match result.0 {
                     gui::ItemMenuResult::Cancel => {
                         newrunstate = RunState::AwaitingInput;
-                        self.has_drawn = false;
+                        self.map_drawn = false;
                     }
                     gui::ItemMenuResult::NoResponse => {}
                     gui::ItemMenuResult::Selected => {
@@ -180,10 +198,10 @@ impl GameState for State {
                             )
                             .expect("Unable to insert intent to drop item");
                         newrunstate = RunState::PlayerTurn;
-                        self.has_drawn = false;
+                        self.map_drawn = false;
                     }
                 }
-            }
+            },
             RunState::ShowTargeting {
                 range,
                 item,
@@ -191,11 +209,11 @@ impl GameState for State {
             } => {
                 let last_cursor = cursor;
                 let cursor = ranged_targeting_input(self, ctx, cursor, range);
-                let target = gui::ranged_target(self, ctx, cursor, range, item);
-                match target.0 {
+                let selection = gui::ranged_target_selection(self, ctx, cursor, range);
+                match selection.0 {
                     ItemMenuResult::NoResponse => {
                         if last_cursor != cursor {
-                            self.has_drawn = false;
+                            gui::ranged_target(self, ctx, cursor, range, item);
                         }
                         newrunstate = RunState::ShowTargeting {
                             range,
@@ -205,7 +223,8 @@ impl GameState for State {
                     }
                     ItemMenuResult::Cancel => {
                         newrunstate = RunState::AwaitingInput;
-                        self.has_drawn = false;
+                        self.redraw_targeting = true;
+                        self.map_drawn = false;
                     }
                     ItemMenuResult::Selected => {
                         let mut intent = self.ecs.write_storage::<WantsToUseItem>();
@@ -214,15 +233,41 @@ impl GameState for State {
                                 *self.ecs.fetch::<Entity>(),
                                 WantsToUseItem {
                                     item,
-                                    target: target.1,
+                                    target: selection.1,
                                 },
                             )
                             .expect("Unable to insert intent to use ranged item");
                         newrunstate = RunState::PlayerTurn;
-                        self.has_drawn = false;
+                        self.map_drawn = false;
                     }
                 }
-            }
+
+            },
+            RunState::MainMenu { menu_selection } => {
+                let result = gui::process_main_menu(self, ctx);
+
+                match result {
+                    gui::MainMenuResult::NoSelection { selected } => {
+                        if selected != menu_selection {
+                            self.redraw_menu = true;
+                        }
+                        newrunstate = RunState::MainMenu { menu_selection: selected };
+                    },
+                    gui::MainMenuResult::Selected { selected } => {
+                        if selected != menu_selection {
+                            self.redraw_menu = true;
+                        }
+                        match selected {
+                            gui::MainMenuSelection::NewGame => {
+                                newrunstate = RunState::PreRun;
+                            },
+                            gui::MainMenuSelection::Quit => {
+                                ::std::process::exit(0);
+                            },
+                        }
+                    }
+                }
+            },
         }
 
         {
@@ -250,12 +295,12 @@ impl GameState for State {
             }
         }
 
-        if !self.has_drawn
+        if !self.map_drawn
             || newrunstate == RunState::PlayerTurn
             || newrunstate == RunState::MonsterTurn
             || (newrunstate == RunState::Looking && looked)
         {
-            self.has_drawn = true;
+            self.map_drawn = true;
 
             // clear screen
             ctx.cls();
@@ -284,6 +329,28 @@ impl GameState for State {
             if newrunstate == RunState::Looking && looked {
                 gui::draw_tooltips_xy(&self.ecs, ctx, self.look_cursor.0, self.look_cursor.1);
             }
+        }
+
+        if self.draw_inventory {
+            gui::show_inventory(self, ctx);
+            self.draw_inventory = false;
+        }
+
+        match newrunstate {
+            RunState::MainMenu { .. } => {
+                if self.redraw_menu {
+                    ctx.cls();
+                    gui::draw_main_menu(self, ctx);
+                    self.redraw_menu = false;
+                }
+            },
+            RunState::ShowTargeting { range, item, cursor } => {
+                if self.redraw_targeting {
+                    gui::ranged_target(self, ctx, cursor, range, item);
+                    self.redraw_targeting = false;
+                }
+            }
+            _ => {},
         }
     }
 }
