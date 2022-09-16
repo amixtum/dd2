@@ -9,24 +9,29 @@ pub mod map;
 pub mod map_indexing_system;
 pub mod melee_combat_system;
 pub mod monster_ai_system;
+pub mod movement_system;
 pub mod player;
 pub mod spawner;
 pub mod state;
 pub mod visibility_system;
 
 use components::AreaOfEffect;
+use components::Balance;
 use components::BlocksTile;
 use components::CombatStats;
 use components::Consumable;
 use components::InBackpack;
 use components::InflictsDamage;
+use components::InstVel;
 use components::Item;
 use components::Monster;
 use components::Name;
 use components::ProvidesHealing;
 use components::Ranged;
+use components::Speed;
 use components::SufferDamage;
 use components::WantsToDropItem;
+use components::WantsToFallover;
 use components::WantsToMelee;
 use components::WantsToPickUpItem;
 use components::WantsToUseItem;
@@ -67,6 +72,10 @@ fn main() -> rltk::BError {
             game.register::<Ranged>();
             game.register::<InflictsDamage>();
             game.register::<AreaOfEffect>();
+            game.register::<Speed>();
+            game.register::<InstVel>();
+            game.register::<Balance>();
+            game.register::<WantsToFallover>();
 
             let map = Map::new_map_rooms_and_corridors();
 

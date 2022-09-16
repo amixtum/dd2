@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use rltk::{Point, RGB};
+use rltk::{Point, PointF, RGB};
 
 use specs::prelude::*;
 use specs_derive::*;
@@ -114,3 +114,33 @@ pub struct InflictsDamage {
 pub struct AreaOfEffect {
     pub radius: i32,
 }
+
+#[derive(Component, Debug)]
+pub struct Speed {
+    pub speed: PointF,
+}
+
+#[derive(Component, Debug)]
+pub struct Balance {
+    pub bal: PointF,
+}
+
+#[derive(Component, Debug)]
+pub struct InstVel {
+    pub vel: Vec<PointF>,
+}
+
+impl InstVel {
+    pub fn new_inst_vel(store: &mut WriteStorage<InstVel>, entity: Entity, vel: PointF) {
+        if let Some(inst_v) = store.get_mut(entity) {
+            inst_v.vel.push(vel);
+        } else {
+            store
+                .insert(entity, InstVel { vel: Vec::new() })
+                .expect("Unable to insert inst velocity");
+        }
+    }
+}
+
+#[derive(Component, Debug)]
+pub struct WantsToFallover {}
