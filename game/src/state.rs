@@ -64,13 +64,13 @@ impl State {
         pickup.run_now(&self.ecs);
         drop_system.run_now(&self.ecs);
 
-        vis.run_now(&self.ecs);
-
         speed_balance.run_now(&self.ecs);
         fallover_system.run_now(&self.ecs);
 
         move_system.run_now(&self.ecs);
         fallover_system.run_now(&self.ecs);
+
+        vis.run_now(&self.ecs);
 
         map_index.run_now(&self.ecs);
 

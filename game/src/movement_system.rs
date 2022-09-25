@@ -7,7 +7,7 @@ use crate::{
     map::Map,
 };
 
-pub const PLAYER_INST: f32 = 0.77;
+pub const PLAYER_INST: f32 = 0.66;
 pub const MONSTER_INST: f32 = 0.66;
 
 pub const MAX_SPEED: f32 = 3.0;
