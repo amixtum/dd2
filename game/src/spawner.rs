@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
-use rltk::{Point, RandomNumberGenerator, Rect, RGB};
+use rltk::{Point, RandomNumberGenerator, Rect, RGB, PointF};
 use specs::prelude::*;
 
 use crate::{
     components::{
         AreaOfEffect, BlocksTile, CombatStats, Consumable, InflictsDamage, Item, Monster, Name,
-        Position, ProvidesHealing, Ranged, Renderable, Viewshed,
+        Position, ProvidesHealing, Ranged, Renderable, Viewshed, Speed, Balance,
     },
     map::MAPWIDTH,
     player::Player,
@@ -39,6 +39,12 @@ pub fn spawn_player(ecs: &mut World, x: i32, y: i32) -> Entity {
             hp: 30,
             defense: 2,
             power: 5,
+        })
+        .with(Speed {
+            speed: PointF::new(0.0, 0.0),
+        })
+        .with(Balance {
+            bal: PointF::new(0.0, 0.0),
         })
         .build()
 }
@@ -87,6 +93,12 @@ fn monster<S: ToString>(ecs: &mut World, x: i32, y: i32, glyph: rltk::FontCharTy
             hp: 16,
             defense: 1,
             power: 4,
+        })
+        .with(Speed {
+            speed: PointF::new(0.0, 0.0),
+        })
+        .with(Balance {
+            bal: PointF::new(0.0, 0.0),
         })
         .build();
 }

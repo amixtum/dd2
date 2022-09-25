@@ -3,17 +3,15 @@ use rltk::{GameState, Point, Rltk};
 use specs::prelude::*;
 
 use crate::components::{Ranged, Viewshed, WantsToDropItem, WantsToUseItem};
-use crate::damage_system::DamageSystem;
 use crate::gui::ItemMenuResult;
 use crate::inventory_system::{ItemCollectionSystem, ItemUseSystem};
 use crate::item_drop_system::ItemDropSystem;
 use crate::map::Map;
 use crate::map_indexing_system::MapIndexingSystem;
-use crate::melee_combat_system::MeleeCombatSystem;
-use crate::monster_ai_system::MonsterAI;
+use crate::movement_system::{SpeedBalanceSystem, MovementSystem, FalloverSystem};
 use crate::player::{look_mode_input, ranged_targeting_input, Player};
 use crate::visibility_system::VisibilitySystem;
-use crate::{damage_system, gui};
+use crate::{gui};
 
 use super::components::Position;
 use super::components::Renderable;
@@ -24,7 +22,6 @@ pub enum RunState {
     AwaitingInput,
     PreRun,
     PlayerTurn,
-    MonsterTurn,
     Looking,
     CleanupTooltips,
     ShowInventory,
@@ -54,31 +51,27 @@ pub struct State {
 impl State {
     pub fn run_systems_player(&mut self) {
         let mut vis = VisibilitySystem {};
-        let mut melee_system = MeleeCombatSystem {};
-        let mut dmg_system = DamageSystem {};
         let mut map_index = MapIndexingSystem {};
         let mut pickup = ItemCollectionSystem {};
         let mut drop_system = ItemDropSystem {};
         let mut potion_system = ItemUseSystem {};
+        let mut speed_balance = SpeedBalanceSystem {};
+        let mut move_system = MovementSystem {};
+        let mut fallover_system = FalloverSystem {};
 
         potion_system.run_now(&self.ecs);
+
         pickup.run_now(&self.ecs);
         drop_system.run_now(&self.ecs);
-        vis.run_now(&self.ecs);
-        map_index.run_now(&self.ecs);
-        melee_system.run_now(&self.ecs);
-        dmg_system.run_now(&self.ecs);
-
-        // update the state of the world
-        self.ecs.maintain();
-    }
-    pub fn run_systems_monsters(&mut self) {
-        let mut vis = VisibilitySystem {};
-        let mut monster_ai = MonsterAI {};
-        let mut map_index = MapIndexingSystem {};
 
         vis.run_now(&self.ecs);
-        monster_ai.run_now(&self.ecs);
+
+        speed_balance.run_now(&self.ecs);
+        fallover_system.run_now(&self.ecs);
+
+        move_system.run_now(&self.ecs);
+        fallover_system.run_now(&self.ecs);
+
         map_index.run_now(&self.ecs);
 
         // update the state of the world
@@ -107,13 +100,8 @@ impl GameState for State {
             }
             RunState::PlayerTurn => {
                 self.run_systems_player();
-                damage_system::delete_dead(&mut self.ecs);
-                newrunstate = RunState::MonsterTurn;
-            }
-            RunState::MonsterTurn => {
-                self.run_systems_monsters();
-                damage_system::delete_dead(&mut self.ecs);
                 newrunstate = RunState::AwaitingInput;
+                self.map_drawn = false;
             }
             RunState::Looking => {
                 if self.last_mouse_position.0 == -1 {
@@ -297,7 +285,6 @@ impl GameState for State {
 
         if !self.map_drawn
             || newrunstate == RunState::PlayerTurn
-            || newrunstate == RunState::MonsterTurn
             || (newrunstate == RunState::Looking && looked)
         {
             self.map_drawn = true;

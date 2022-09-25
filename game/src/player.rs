@@ -1,13 +1,12 @@
-use std::cmp::{max, min};
-
-use rltk::{Point, Rltk, VirtualKeyCode};
+use rltk::{Point, Rltk, VirtualKeyCode, PointF};
 
 use specs::prelude::*;
 use specs_derive::Component;
 
-use crate::components::{CombatStats, Item, Viewshed, WantsToMelee, WantsToPickUpItem};
+use crate::components::{Item, Viewshed, WantsToPickUpItem, InstVel};
 use crate::gamelog::GameLog;
 use crate::map::Map;
+use crate::movement_system::PLAYER_INST;
 use crate::state::RunState;
 
 use super::components::Position;
@@ -17,49 +16,17 @@ use super::state::State;
 pub struct Player {}
 
 pub fn try_move_player(delta_x: i32, delta_y: i32, ecs: &mut World) {
-    let entities = ecs.entities();
-    let mut positions = ecs.write_storage::<Position>();
-    let mut players = ecs.write_storage::<Player>();
-    let combat_stats = ecs.read_storage::<CombatStats>();
-    let map = ecs.fetch::<Map>();
-    let mut wants_to_melee = ecs.write_storage::<WantsToMelee>();
-
-    for (entity, _player, position) in (&entities, &mut players, &mut positions).join() {
-        let new_x = position.point.x + delta_x;
-        let new_y = position.point.y + delta_y;
-        if new_x < 1 || new_x > map.width - 1 || new_y < 1 || new_y > map.height - 1 {
-            return;
-        }
-
-        let dest_idx = map.xy_flat(new_x, new_y);
-
-        for potential_target in map.tile_content[dest_idx].iter() {
-            let target = combat_stats.get(*potential_target);
-            match target {
-                None => {}
-                Some(_target) => {
-                    wants_to_melee
-                        .insert(
-                            entity,
-                            WantsToMelee {
-                                target: *potential_target,
-                            },
-                        )
-                        .expect("Add target failed");
-                    return;
-                }
-            }
-        }
-
-        if !map.blocked_tiles.contains(&Point::new(new_x, new_y)) {
-            position.point.x = min(79, max(0, new_x));
-            position.point.y = min(49, max(0, new_y));
-
-            let mut player_pos = ecs.write_resource::<Point>();
-            player_pos.x = position.point.x;
-            player_pos.y = position.point.y;
-        }
+    if delta_x == 0 && delta_y == 0 {
+        return;
     }
+
+    let player_entity = ecs.fetch_mut::<Entity>();
+    let mut inst_vels = ecs.write_storage::<InstVel>();
+    let mut vel = PointF::new(delta_x as f32, delta_y as f32).normalized();
+    vel.x *= PLAYER_INST;
+    vel.y *= PLAYER_INST;
+    
+    InstVel::new_inst_vel(&mut inst_vels, *player_entity, vel);
 }
 
 fn get_item(ecs: &mut World) {
@@ -72,7 +39,7 @@ fn get_item(ecs: &mut World) {
 
     let mut target_item: Option<Entity> = None;
     for (item_entity, _item, position) in (&entities, &items, &positions).join() {
-        if position.point == *player_pos {
+        if position.point.x == player_pos.x && position.point.y == player_pos.y {
             target_item = Some(item_entity);
         }
     }
@@ -127,6 +94,9 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
             }
             VirtualKeyCode::C | VirtualKeyCode::N => {
                 try_move_player(1, 1, &mut gs.ecs);
+            }
+            VirtualKeyCode::Period => {
+                return RunState::PlayerTurn;
             }
             VirtualKeyCode::Semicolon => {
                 return RunState::Looking;

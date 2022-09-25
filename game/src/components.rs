@@ -136,7 +136,7 @@ impl InstVel {
             inst_v.vel.push(vel);
         } else {
             store
-                .insert(entity, InstVel { vel: Vec::new() })
+                .insert(entity, InstVel { vel: vec![vel] })
                 .expect("Unable to insert inst velocity");
         }
     }

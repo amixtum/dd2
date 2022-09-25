@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet};
 
 use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rect, RGB};
 use specs::{Entity, Join, World, WorldExt};
@@ -24,7 +24,7 @@ pub struct Map {
     pub revealed_tiles: HashSet<Point>,
     pub blocked_tiles: HashSet<Point>,
     pub tile_content: Vec<Vec<Entity>>,
-    //pub render_table: HashMap<TileType, (RGB, RGB, rltk::FontCharType)>,
+    //pub render_table: HashMap<TileType, rltk::FontCharType>,
 }
 
 impl Map {
