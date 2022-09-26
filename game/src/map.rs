@@ -3,7 +3,7 @@ use std::collections::{HashSet};
 use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rect, RGB, PointF};
 use specs::{Entity, Join, World, WorldExt};
 
-use crate::{components::{Viewshed, Balance, Speed}, player::{Player}, movement_system::{MovementSystem, PLAYER_INST, FALLOVER}};
+use crate::{components::{Viewshed, Balance, Speed}, player::{Player}, movement_system::{MovementSystem, PLAYER_INST, FALLOVER, BALANCE_DAMP, SPEED_DAMP}};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum TileType {
@@ -67,6 +67,31 @@ impl Map {
     }
 }
 
+fn get_simulation_color(map: &Map, speed: &Speed, balance: &Balance, player_pos: &Point, map_pos: &Point) -> RGB {
+    let inst_v = PointF::new(map_pos.x as f32 - player_pos.x as f32, map_pos.y as f32 - player_pos.y as f32).normalized() * PLAYER_INST;
+
+    let sim_x = (player_pos.x as f32 + speed.speed.x * SPEED_DAMP + inst_v.x)
+        .clamp(player_pos.x as f32 - 1.0, player_pos.x as f32 + 1.0)
+        .round() as i32;
+    let sim_y = (player_pos.y as f32 + speed.speed.y * SPEED_DAMP + inst_v.y)
+        .clamp(player_pos.y as f32 - 1.0, player_pos.y as f32 + 1.0)
+        .round() as i32;
+
+    let balance = balance.bal * BALANCE_DAMP;
+    let simulate_balance = MovementSystem::compute_balance(balance, speed.speed, inst_v);
+
+    let fallover = simulate_balance.mag() / FALLOVER;
+    let color: RGB;
+    if fallover < 1.0 && !map.blocked_tiles.contains(&Point::new(sim_x, sim_y)) {
+        color = RGB::from_f32(1.0 - fallover, 0.0, fallover);
+    }
+    else {
+        color = RGB::from_f32(0.0, 1.0, 0.0);
+    }
+
+    color
+}
+
 impl Map {
     pub fn draw_map(ecs: &World, ctx: &mut rltk::Rltk) {
         let mut viewsheds = ecs.write_storage::<Viewshed>();
@@ -83,17 +108,7 @@ impl Map {
             for tile in map.tiles.iter() {
                 let point = Point::new(x, y);
                 if viewshed.visible_tiles.contains(&point) {
-                    let inst_v = PointF::new(point.x as f32 - player_pos.x as f32, point.y as f32 - player_pos.y as f32).normalized() * PLAYER_INST;
-                    let simulate_balance = MovementSystem::compute_balance(balance.bal, speed.speed, inst_v);
-                    let fallover = simulate_balance.mag() / FALLOVER;
-                    let color: RGB;
-                    if fallover < 1.0 {
-                        color = RGB::from_f32(1.0 - fallover, 0.0, fallover);
-                    }
-                    else {
-                        color = RGB::from_f32(0.0, 1.0, 0.0);
-                    }
-
+                    let color = get_simulation_color(&map, &speed, &balance, &player_pos, &point);
                     match tile {
                         TileType::Floor => {
                             ctx.set(
