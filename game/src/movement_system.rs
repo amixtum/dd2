@@ -1,4 +1,4 @@
-use rltk::{DistanceAlg, Point, PointF, RandomNumberGenerator, console};
+use rltk::{Point, PointF, RandomNumberGenerator};
 use specs::prelude::*;
 use util::vec_ops::{self};
 
@@ -7,7 +7,7 @@ use crate::{
     map::Map,
 };
 
-pub const PLAYER_INST: f32 = 0.66;
+pub const PLAYER_INST: f32 = 0.77;
 pub const MONSTER_INST: f32 = 0.66;
 
 pub const MAX_SPEED: f32 = 3.0;
@@ -18,7 +18,7 @@ pub const ZERO_BALANCE: f32 = 0.25;
 
 pub const BALANCE_DAMP: f32 = 0.5;
 pub const LEAN_FACTOR: f32 = 0.66;
-pub const FALLOVER: f32 = 5.0;
+pub const FALLOVER: f32 = 1.33;
 
 pub struct FalloverSystem {}
 
@@ -62,8 +62,9 @@ impl<'a> System<'a> for SpeedBalanceSystem {
             speed.speed *= SPEED_DAMP;
             balance.bal *= BALANCE_DAMP;
 
-            // add inst velocities to speed
             if let Some(inst_v) = inst_vels.get_mut(entity) {
+                let last_speed = speed.speed;
+
                 let mut instv_sum: PointF = PointF::new(0.0, 0.0);
 
                 for vel in inst_v.vel.iter() {
@@ -71,45 +72,80 @@ impl<'a> System<'a> for SpeedBalanceSystem {
                     instv_sum.y += vel.y;
                 }
 
-                let last_speed = speed.speed;
+                // add sum of inst velocities to speed
+                speed.speed = MovementSystem::compute_speed_cached_sum(speed.speed, instv_sum);
 
-                speed.speed.x += instv_sum.x;
-                speed.speed.y += instv_sum.y;
+                //console::log(format!("speed = ({}, {})", speed.speed.x, speed.speed.y));
 
-                console::log(format!("speed = ({}, {})", speed.speed.x, speed.speed.y));
-
-                let mag = speed.speed.mag();
-                if mag > MAX_SPEED {
-                    speed.speed *= MAX_SPEED / speed.speed.mag();
-                } else if mag <= ZERO_SPEED {
-                    speed.speed = PointF::new(0.0, 0.0);
-                }
-
-                // entity leans in direction they were last moving and are not moving anymore
-                if last_speed.mag() > ZERO_SPEED {
-                    let direction_diff = last_speed - instv_sum;
-                    let units = vec_ops::discrete_jmp((direction_diff.x, direction_diff.y));
-                    let orthogonality = (2.0 * last_speed.mag() * instv_sum.mag()
-                        - last_speed.dot(instv_sum))
-                        / (2.0 * last_speed.mag()
-                        * instv_sum.mag());
-
-                    balance.bal.x += units.1.signum() as f32 * orthogonality * LEAN_FACTOR;
-                    balance.bal.y += units.0.signum() as f32 * orthogonality * LEAN_FACTOR;
-                }
+                // compute orthogonal movement's contribution to balance
+                balance.bal = MovementSystem::compute_balance(balance.bal, last_speed, instv_sum);
             }
 
+            let mag = speed.speed.mag();
+
+            // clamp to max_speed
+            if mag > MAX_SPEED {
+                speed.speed *= MAX_SPEED / speed.speed.mag();
+            
+            // zero speed below this threshold
+            } else if mag <= ZERO_SPEED {
+                speed.speed = PointF::new(0.0, 0.0);
+            }
+
+            // fallover when balance is too large
             if balance.bal.mag() >= FALLOVER {
                 fallovers
                     .insert(entity, WantsToFallover {})
                     .expect("Unable to insert intent to fallover");
             }
+
+            // zero balance below this threshold
             else if balance.bal.mag() <= ZERO_BALANCE {
                 balance.bal = PointF::new(0.0, 0.0);
             }
         }
 
         inst_vels.clear();
+    }
+}
+
+impl MovementSystem {
+    pub fn compute_speed_component(speed: PointF, inst_vel: &InstVel) -> PointF {
+        let mut speed = speed * SPEED_DAMP;
+
+        let mut instv_sum: PointF = PointF::new(0.0, 0.0);
+
+        for vel in inst_vel.vel.iter() {
+            instv_sum.x += vel.x;
+            instv_sum.y += vel.y;
+        }
+
+        speed.x += instv_sum.x;
+        speed.y += instv_sum.y;
+
+        speed
+    }
+
+    pub fn compute_speed_cached_sum(speed: PointF, inst_vel: PointF) -> PointF {
+        speed + inst_vel
+    }
+
+    pub fn compute_balance(balance: PointF, last_speed: PointF, inst_vel: PointF) -> PointF {
+        let mut balance = balance;
+        // entity leans in direction they were last moving and are not moving anymore
+        if last_speed.mag() > ZERO_SPEED && inst_vel.mag() > 0.01 {
+            let direction_diff = last_speed - inst_vel;
+            let units = vec_ops::discrete_jmp((direction_diff.x, direction_diff.y));
+            let orthogonality = (2.0 * last_speed.mag() * inst_vel.mag()
+                - last_speed.dot(inst_vel))
+                / (2.0 * last_speed.mag()
+                * inst_vel.mag());
+
+            balance.x += units.1.signum() as f32 * orthogonality * LEAN_FACTOR;
+            balance.y += units.0.signum() as f32 * orthogonality * LEAN_FACTOR;
+        }
+
+        balance
     }
 }
 
@@ -143,9 +179,12 @@ impl<'a> System<'a> for MovementSystem {
             let y = (pos.point.y as f32 + speed.speed.y)
                 .clamp(pos.point.y as f32 - 1.0, pos.point.y as f32 + 1.0)
                 .round() as i32;
+
+            // nothing to update
             if x == pos.point.x && y == pos.point.y {
                 continue;
             }
+
             let next = Point::new(x, y);
             let mut blocked = false;
 
@@ -169,7 +208,7 @@ impl<'a> System<'a> for MovementSystem {
             }
             // update position
             else {
-                console::log(format!("next = ({}, {})", next.x, next.y));
+                //console::log(format!("next = ({}, {})", next.x, next.y));
                 map.blocked_tiles.remove(&pos.point);
                 pos.point = next;
 
@@ -181,212 +220,5 @@ impl<'a> System<'a> for MovementSystem {
                 map.blocked_tiles.insert(pos.point);
             }
         }
-    }
-}
-
-fn _compute_slide(
-    map: &Map,
-    pos: &Position,
-    speed: &Speed,
-    other_speed: &Speed,
-    rng: &mut RandomNumberGenerator,
-) -> Option<Point> {
-    let new_speed = speed.speed + other_speed.speed;
-    let x = (pos.point.x as f32 + new_speed.x)
-        .clamp(pos.point.x as f32 - 1.0, pos.point.x as f32 + 1.0)
-        .clamp(0.0, map.width as f32 - 1.0)
-        .round() as i32;
-    let y = (pos.point.y as f32 + new_speed.y)
-        .clamp(pos.point.x as f32 - 1.0, pos.point.x as f32 + 1.0)
-        .clamp(0.0, map.height as f32 - 1.0)
-        .round() as i32;
-    let mut next = Point::new(x, y);
-
-    // TODO
-    // check that we are not colliding with anything after 'sliding'
-    let mut blocked = map.blocked_tiles.contains(&next);
-    if blocked {
-        let units = vec_ops::discrete_jmp((new_speed.x, new_speed.y));
-        let nbrs = vec_ops::neighbors((next.x, next.y), (1, 1), (map.width - 2, map.height - 2));
-        let mut nbrs_can_bounce = nbrs
-            .iter()
-            .filter(|p| match units.0.signum() {
-                -1 => match units.1.signum() {
-                    -1 => {
-                        (p.0 == next.x - 1 || p.0 == next.x) && (p.1 == next.y - 1 || p.1 == next.y)
-                    }
-                    0 => p.0 == next.x - 1,
-                    1 => {
-                        (p.0 == next.x - 1 || p.0 == next.x) && (p.1 == next.y + 1 || p.1 == next.y)
-                    }
-                    _ => false,
-                },
-                0 => match units.1.signum() {
-                    -1 => p.1 == next.y - 1,
-                    0 => true,
-                    1 => p.1 == next.y + 1,
-                    _ => false,
-                },
-                1 => match units.1.signum() {
-                    -1 => {
-                        (p.0 == next.x + 1 || p.0 == next.x) && (p.1 == next.y - 1 || p.1 == next.y)
-                    }
-                    0 => p.0 == next.x + 1,
-                    1 => {
-                        (p.0 == next.x + 1 || p.0 == next.x) && (p.1 == next.y + 1 || p.1 == next.y)
-                    }
-                    _ => false,
-                },
-                _ => false,
-            })
-            .filter(|p| !map.blocked_tiles.contains(&Point::new(p.0, p.1)))
-            .collect::<Vec<_>>();
-
-        // we cannot slide one tile to an unblocked position
-        // so we set blocked to true whichmakes us fall over
-        if nbrs_can_bounce.len() < 1 {
-            blocked = true;
-        } else if nbrs_can_bounce.len() == 1 {
-            next = Point::new(nbrs_can_bounce[0].0, nbrs_can_bounce[0].1);
-            blocked = false;
-        } else {
-            // sort by decreasing distance from point obtained by adding our new speed (after slide)
-            nbrs_can_bounce.sort_by(|l, r| {
-                let ldist = DistanceAlg::Pythagoras
-                    .distance2d(Point::new(l.0, l.1), next)
-                    .round() as i32;
-                let rdist = DistanceAlg::Pythagoras
-                    .distance2d(Point::new(r.0, r.1), next)
-                    .round() as i32;
-                ldist.cmp(&rdist)
-            });
-
-            // weighted choice
-            let mut weights = Vec::new();
-            let mut sum = 0;
-            for n in 0..nbrs_can_bounce.len() {
-                let sqr = (nbrs_can_bounce.len() - n).pow(2);
-                sum += sqr as i32;
-                weights.push(sqr as i32);
-            }
-            while blocked {
-                for weight in weights.iter().enumerate() {
-                    let roll = rng.roll_dice(1, sum);
-                    if roll <= *weight.1 {
-                        let choice = nbrs_can_bounce[weight.0 as usize];
-                        next = Point::new(choice.0, choice.1);
-                        blocked = false;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    if blocked {
-        return None;
-    } else {
-        return Some(next);
-    }
-}
-
-fn _compute_wall_slide(
-    map: &Map,
-    pos: &Position,
-    speed: &Speed,
-    rng: &mut RandomNumberGenerator,
-) -> Option<Point> {
-    let new_speed = speed.speed;
-    let x = (pos.point.x as f32 + new_speed.x)
-        .clamp(pos.point.x as f32 - 1.0, pos.point.x as f32 + 1.0)
-        .round() as i32;
-    let y = (pos.point.y as f32 + new_speed.y)
-        .clamp(pos.point.x as f32 - 1.0, pos.point.x as f32 + 1.0)
-        .round() as i32;
-    let mut next = Point::new(x, y);
-
-    // TODO
-    // check that we are not colliding with anything after 'sliding'
-    let mut blocked = map.blocked_tiles.contains(&next);
-    if blocked {
-        let units = vec_ops::discrete_jmp((new_speed.x, new_speed.y));
-        let nbrs = vec_ops::neighbors((next.x, next.y), (1, 1), (map.width - 2, map.height - 2));
-        let mut nbrs_can_bounce = nbrs
-            .iter()
-            .filter(|p| match units.0.signum() {
-                -1 => match units.1.signum() {
-                    -1 => {
-                        (p.0 == next.x - 1 || p.0 == next.x) && (p.1 == next.y - 1 || p.1 == next.y)
-                    }
-                    0 => p.0 == next.x - 1,
-                    1 => {
-                        (p.0 == next.x - 1 || p.0 == next.x) && (p.1 == next.y + 1 || p.1 == next.y)
-                    }
-                    _ => false,
-                },
-                0 => match units.1.signum() {
-                    -1 => p.1 == next.y - 1,
-                    0 => true,
-                    1 => p.1 == next.y + 1,
-                    _ => false,
-                },
-                1 => match units.1.signum() {
-                    -1 => {
-                        (p.0 == next.x + 1 || p.0 == next.x) && (p.1 == next.y - 1 || p.1 == next.y)
-                    }
-                    0 => p.0 == next.x + 1,
-                    1 => {
-                        (p.0 == next.x + 1 || p.0 == next.x) && (p.1 == next.y + 1 || p.1 == next.y)
-                    }
-                    _ => false,
-                },
-                _ => false,
-            })
-            .filter(|p| !map.blocked_tiles.contains(&Point::new(p.0, p.1)))
-            .collect::<Vec<_>>();
-
-        // we cannot slide one tile to an unblocked position
-        // so we set blocked to true whichmakes us fall over
-        if nbrs_can_bounce.len() < 1 {
-            blocked = true;
-        } else if nbrs_can_bounce.len() == 1 {
-            next = Point::new(nbrs_can_bounce[0].0, nbrs_can_bounce[0].1);
-            blocked = false;
-        } else {
-            // sort by decreasing distance from point obtained by adding our new speed (after slide)
-            nbrs_can_bounce.sort_by(|l, r| {
-                let ldist = DistanceAlg::Pythagoras
-                    .distance2d(Point::new(l.0, l.1), next)
-                    .round() as i32;
-                let rdist = DistanceAlg::Pythagoras
-                    .distance2d(Point::new(r.0, r.1), next)
-                    .round() as i32;
-                ldist.cmp(&rdist)
-            });
-
-            // weighted choice
-            let mut weights = Vec::new();
-            let mut sum = 0;
-            for n in 0..nbrs_can_bounce.len() {
-                let sqr = (nbrs_can_bounce.len() - n).pow(2);
-                sum += sqr as i32;
-                weights.push(sqr as i32);
-            }
-            while blocked {
-                for weight in weights.iter().enumerate() {
-                    let roll = rng.roll_dice(1, sum);
-                    if roll <= *weight.1 {
-                        let choice = nbrs_can_bounce[weight.0 as usize];
-                        next = Point::new(choice.0, choice.1);
-                        blocked = false;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    if blocked {
-        return None;
-    } else {
-        return Some(next);
     }
 }

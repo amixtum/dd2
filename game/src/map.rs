@@ -1,9 +1,9 @@
 use std::collections::{HashSet};
 
-use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rect, RGB};
+use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rect, RGB, PointF};
 use specs::{Entity, Join, World, WorldExt};
 
-use crate::{components::Viewshed, player::Player};
+use crate::{components::{Viewshed, Balance, Speed}, player::{Player}, movement_system::{MovementSystem, PLAYER_INST, FALLOVER}};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum TileType {
@@ -71,21 +71,35 @@ impl Map {
     pub fn draw_map(ecs: &World, ctx: &mut rltk::Rltk) {
         let mut viewsheds = ecs.write_storage::<Viewshed>();
         let mut players = ecs.write_storage::<Player>();
+        let balances = ecs.read_storage::<Balance>();
+        let speeds = ecs.read_storage::<Speed>();
+        let player_pos = ecs.fetch::<Point>();
         let map = ecs.fetch::<Map>();
 
-        for (_player, viewshed) in (&mut players, &mut viewsheds).join() {
+        for (_player, viewshed, balance, speed) in (&mut players, &mut viewsheds, &balances, &speeds).join() {
             let mut x = 0;
             let mut y = 0;
 
             for tile in map.tiles.iter() {
                 let point = Point::new(x, y);
                 if viewshed.visible_tiles.contains(&point) {
+                    let inst_v = PointF::new(point.x as f32 - player_pos.x as f32, point.y as f32 - player_pos.y as f32).normalized() * PLAYER_INST;
+                    let simulate_balance = MovementSystem::compute_balance(balance.bal, speed.speed, inst_v);
+                    let fallover = simulate_balance.mag() / FALLOVER;
+                    let color: RGB;
+                    if fallover < 1.0 {
+                        color = RGB::from_f32(1.0 - fallover, 0.0, fallover);
+                    }
+                    else {
+                        color = RGB::from_f32(0.0, 1.0, 0.0);
+                    }
+
                     match tile {
                         TileType::Floor => {
                             ctx.set(
                                 x,
                                 y,
-                                RGB::from_u8(127, 127, 127),
+                                color,
                                 RGB::from_u8(0, 0, 0),
                                 rltk::to_cp437('.'),
                             );
@@ -94,7 +108,7 @@ impl Map {
                             ctx.set(
                                 x,
                                 y,
-                                RGB::from_u8(0, 255, 0),
+                                color,
                                 RGB::from_u8(0, 0, 0),
                                 rltk::to_cp437('#'),
                             );
