@@ -12,6 +12,7 @@ pub mod player;
 pub mod spawner;
 pub mod state;
 pub mod visibility_system;
+pub mod help_viewer;
 
 use components::AreaOfEffect;
 use components::Balance;

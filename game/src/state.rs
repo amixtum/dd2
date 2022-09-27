@@ -4,11 +4,12 @@ use specs::prelude::*;
 
 use crate::components::{Ranged, Viewshed, WantsToDropItem, WantsToUseItem};
 use crate::damage_system::DamageSystem;
-use crate::gui;
+use crate::gui::{self};
 use crate::gui::ItemMenuResult;
+use crate::help_viewer;
 use crate::inventory_system::{ItemCollectionSystem, ItemUseSystem};
 use crate::item_drop_system::ItemDropSystem;
-use crate::map::{self, Map};
+use crate::map::{self, Map, MAPHEIGHT, MAPWIDTH};
 use crate::map_indexing_system::MapIndexingSystem;
 use crate::movement_system::{FalloverSystem, MovementSystem, SpeedBalanceSystem};
 use crate::player::{look_mode_input, ranged_targeting_input, Player};
@@ -36,6 +37,9 @@ pub enum RunState {
     },
     MainMenu {
         menu_selection: gui::MainMenuSelection,
+    },
+    ShowHelpMenu{
+        shown: bool,
     },
 }
 
@@ -81,7 +85,30 @@ impl State {
         // update the state of the world
         self.ecs.maintain();
     }
+    fn tick_help_screen(&mut self, ctx: &mut rltk::Rltk, shown: bool) -> RunState {
+        if !shown {
+            help_viewer::help_screen(ctx, MAPWIDTH as u32, MAPHEIGHT as u32);
+            return RunState::ShowHelpMenu { shown: true };
+        }
+        match ctx.key {
+            None => {
+                return RunState::ShowHelpMenu { shown: true };
+            }
+            Some(key) => match key {
+                rltk::VirtualKeyCode::Escape => {
+                    self.map_drawn = false;
+                    return RunState::AwaitingInput;
+                }
+                _ => {
+                    return RunState::ShowHelpMenu { shown: true };
+                }
+            }
+        }
+    }
 }
+
+
+
 
 impl GameState for State {
     fn tick(&mut self, ctx: &mut Rltk) {
@@ -263,6 +290,9 @@ impl GameState for State {
                         }
                     }
                 }
+            }
+            RunState::ShowHelpMenu { shown }=> {
+                newrunstate = self.tick_help_screen(ctx, shown);
             }
         }
 

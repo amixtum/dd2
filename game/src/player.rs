@@ -110,6 +110,9 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
             VirtualKeyCode::Minus => {
                 return RunState::ShowDropItem;
             }
+            VirtualKeyCode::Escape => {
+                return RunState::ShowHelpMenu{ shown: false };
+            }
             _ => {
                 return RunState::AwaitingInput;
             }
