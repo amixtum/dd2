@@ -2,11 +2,12 @@ use rltk::{GameState, Point, Rltk};
 
 use specs::prelude::*;
 
-use crate::components::{Ranged, Viewshed, WantsToDropItem, WantsToUseItem};
+use crate::components::{Ranged, Viewshed, WantsToDropItem, WantsToUseItem, InBackpack, CombatStats};
 use crate::damage_system::DamageSystem;
+use crate::gamelog::GameLog;
 use crate::gui::{self};
 use crate::gui::ItemMenuResult;
-use crate::help_viewer;
+use crate::{help_viewer, spawner};
 use crate::inventory_system::{ItemCollectionSystem, ItemUseSystem};
 use crate::item_drop_system::ItemDropSystem;
 use crate::map::{self, Map, MAPHEIGHT, MAPWIDTH};
@@ -41,6 +42,7 @@ pub enum RunState {
     ShowHelpMenu{
         shown: bool,
     },
+    NextLevel,
 }
 
 pub struct State {
@@ -85,7 +87,85 @@ impl State {
         // update the state of the world
         self.ecs.maintain();
     }
+
+    fn entities_to_remove_on_level_change(&mut self) -> Vec<Entity> {
+        let entities = self.ecs.entities();
+        let player = self.ecs.read_storage::<Player>();
+        let backpack = self.ecs.read_storage::<InBackpack>();
+        let player_entity = self.ecs.fetch::<Entity>();
+
+        let mut to_delete : Vec<Entity> = Vec::new();
+        for entity in entities.join() {
+            let mut should_delete = true;
+
+            // Don't delete the player
+            let p = player.get(entity);
+            if let Some(_p) = p {
+                should_delete = false;
+            }
+
+            // Don't delete the player's equipment
+            let bp = backpack.get(entity);
+            if let Some(bp) = bp {
+                if bp.owner == *player_entity {
+                    should_delete = false;
+                }
+            }
+
+            if should_delete { 
+                to_delete.push(entity);
+            }
+        }
+
+        to_delete
+    }
+
+    fn goto_next_level(&mut self) {
+        // delete all non-persistent entities
+        let to_delete = self.entities_to_remove_on_level_change();
+        for target in to_delete {
+            self.ecs.delete_entity(target).expect("Unable to delete entity");
+        }
+
+        // generate a new map with depth + 1
+        let worldmap;
+        {
+            let mut worldmap_resource = self.ecs.write_resource::<Map>();
+            let current_depth = worldmap_resource.depth;
+            *worldmap_resource = Map::new_map_rooms_and_corridors(current_depth + 1);
+            worldmap = worldmap_resource.clone();
+        }
+
+        // spawn entities in rooms
+        for room in worldmap.rooms.iter().skip(1) {
+            spawner::spawn_room(&mut self.ecs, room);
+        }
+
+        // store the new player position
+        let player_pos = worldmap.rooms[0].center();
+        let mut ppos_res = self.ecs.write_resource::<Point>();
+        *ppos_res = player_pos;
+
+        // update the player's Position component
+        let mut position_comps = self.ecs.write_storage::<Position>();
+        let player_ent = self.ecs.fetch::<Entity>();
+        let player_pos_comp = position_comps.get_mut(*player_ent);
+        if let Some(pos_comp) = player_pos_comp {
+            pos_comp.point = player_pos;
+        }
+
+        // Notify the player and give them some health
+        let mut log = self.ecs.fetch_mut::<GameLog>();
+        log.entries.push("You descend to the next level, and take a moment to heal.".to_string());
+        let mut player_health_store = self.ecs.write_storage::<CombatStats>();
+        let player_health = player_health_store.get_mut(*player_ent);
+        if let Some(player_health) = player_health {
+            player_health.hp = i32::max(player_health.hp, player_health.max_hp / 2);
+        }
+    }
+
     fn tick_help_screen(&mut self, ctx: &mut rltk::Rltk, shown: bool) -> RunState {
+        // only draw screen once
         if !shown {
             help_viewer::help_screen(ctx, MAPWIDTH as u32, MAPHEIGHT as u32);
             return RunState::ShowHelpMenu { shown: true };
@@ -105,6 +185,8 @@ impl State {
             }
         }
     }
+
+
 }
 
 
@@ -134,6 +216,10 @@ impl GameState for State {
                 map::cleanup_dead(&mut self.ecs);
                 newrunstate = RunState::AwaitingInput;
                 self.map_drawn = false;
+            }
+            RunState::NextLevel => {
+                self.goto_next_level();
+                newrunstate = RunState::PreRun;
             }
             RunState::Looking => {
                 if self.last_mouse_position.0 == -1 {
@@ -301,14 +387,14 @@ impl GameState for State {
             *runwriter = newrunstate;
         }
 
-        let mut looked = false;
+        let mut moved_look_cursor = false;
         if newrunstate == RunState::Looking {
             let viewsheds = self.ecs.read_storage::<Viewshed>();
             let player = self.ecs.fetch::<Entity>();
             let mouse_pos = ctx.mouse_point();
 
             if last_cursor.0 != self.look_cursor.0 || last_cursor.1 != self.look_cursor.1 {
-                looked = true;
+                moved_look_cursor = true;
             } else if let Some(viewshed) = viewsheds.get(*player) {
                 if (mouse_pos.x != self.last_mouse_position.0
                     || mouse_pos.y != self.last_mouse_position.1)
@@ -316,14 +402,14 @@ impl GameState for State {
                 {
                     self.look_cursor = (mouse_pos.x, mouse_pos.y);
                     self.last_mouse_position = (mouse_pos.x, mouse_pos.y);
-                    looked = true;
+                    moved_look_cursor = true;
                 }
             }
         }
 
         if !self.map_drawn
             || newrunstate == RunState::PlayerTurn
-            || (newrunstate == RunState::Looking && looked)
+            || (newrunstate == RunState::Looking && moved_look_cursor)
         {
             self.map_drawn = true;
 
@@ -351,7 +437,7 @@ impl GameState for State {
 
             gui::draw_ui(&self.ecs, ctx);
 
-            if newrunstate == RunState::Looking && looked {
+            if newrunstate == RunState::Looking && moved_look_cursor {
                 gui::draw_tooltips_xy(&self.ecs, ctx, self.look_cursor.0, self.look_cursor.1);
             }
         }

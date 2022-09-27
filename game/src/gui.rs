@@ -256,6 +256,10 @@ pub fn draw_ui(ecs: &World, ctx: &mut rltk::Rltk) {
         RGB::named(rltk::BLACK),
     );
 
+    let map = ecs.fetch::<Map>();
+    let depth = format!("Depth: {}", map.depth);
+    ctx.print_color(2, 43, RGB::named(rltk::YELLOW), RGB::named(rltk::BLACK), &depth);
+
     let combat_stats = ecs.read_storage::<CombatStats>();
     let players = ecs.read_storage::<Player>();
     for (_player, stats) in (&players, &combat_stats).join() {
@@ -674,7 +678,7 @@ pub fn process_main_menu(gs: &mut State, ctx: &mut rltk::Rltk) -> MainMenuResult
                         selected: MainMenuSelection::Quit,
                     }
                 }
-                VirtualKeyCode::Up => {
+                VirtualKeyCode::W => {
                     let newselection;
                     match menu_selection {
                         MainMenuSelection::NewGame => newselection = MainMenuSelection::Quit,
@@ -684,7 +688,7 @@ pub fn process_main_menu(gs: &mut State, ctx: &mut rltk::Rltk) -> MainMenuResult
                         selected: newselection,
                     };
                 }
-                VirtualKeyCode::Down => {
+                VirtualKeyCode::S => {
                     let newselection;
                     match menu_selection {
                         MainMenuSelection::NewGame => newselection = MainMenuSelection::Quit,

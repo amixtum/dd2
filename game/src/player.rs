@@ -5,7 +5,7 @@ use specs_derive::Component;
 
 use crate::components::{InstVel, Item, Viewshed, WantsToPickUpItem};
 use crate::gamelog::GameLog;
-use crate::map::Map;
+use crate::map::{Map, TileType};
 use crate::movement_system::PLAYER_INST;
 use crate::state::RunState;
 
@@ -113,6 +113,11 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
             VirtualKeyCode::Escape => {
                 return RunState::ShowHelpMenu{ shown: false };
             }
+            VirtualKeyCode::Key0 => {
+                if try_next_level(&mut gs.ecs) {
+                    return RunState::NextLevel;
+                }
+            }
             _ => {
                 return RunState::AwaitingInput;
             }
@@ -120,6 +125,20 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
     }
 
     RunState::PlayerTurn
+}
+
+pub fn try_next_level(ecs: &mut World) -> bool {
+    let player_pos = ecs.fetch::<Point>();
+    let map = ecs.fetch::<Map>();
+    let player_idx = map.xy_flat(player_pos.x, player_pos.y);
+    if map.tiles[player_idx] == TileType::DownStairs {
+        return true;
+    }
+    else {
+        let mut log = ecs.fetch_mut::<GameLog>();
+        log.entries.push("There is no way down from here".to_string());
+        return false;
+    }
 }
 
 fn try_move_cursor(delta_x: i32, delta_y: i32, gs: &mut State) -> (i32, i32) {

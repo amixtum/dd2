@@ -13,6 +13,7 @@ use crate::{
 pub enum TileType {
     Wall,
     Floor,
+    DownStairs,
     //Rail {xdir: i32, ydir: i32},
 }
 
@@ -20,6 +21,7 @@ pub const MAPWIDTH: usize = 80;
 pub const MAPHEIGHT: usize = 50 - 6;
 pub const MAPCOUNT: usize = MAPHEIGHT * MAPWIDTH;
 
+#[derive(Clone)]
 pub struct Map {
     pub tiles: Vec<TileType>,
     pub rooms: Vec<Rect>,
@@ -28,6 +30,7 @@ pub struct Map {
     pub revealed_tiles: HashSet<Point>,
     pub blocked_tiles: HashSet<Point>,
     pub tile_content: Vec<Vec<Entity>>,
+    pub depth: i32,
     //pub render_table: HashMap<TileType, rltk::FontCharType>,
 }
 
@@ -160,6 +163,9 @@ impl Map {
                         TileType::Wall => {
                             ctx.set(x, y, color, RGB::from_u8(0, 0, 0), rltk::to_cp437('#'));
                         }
+                        TileType::DownStairs => {
+                            ctx.set(x, y, color, RGB::from_u8(0, 0, 0), rltk::to_cp437('>'));
+                        }
                     }
                 } else if map.revealed_tiles.contains(&point) {
                     match tile {
@@ -179,6 +185,15 @@ impl Map {
                                 RGB::from_u8(64, 64, 64),
                                 RGB::from_u8(0, 0, 0),
                                 rltk::to_cp437('#'),
+                            );
+                        }
+                        TileType::DownStairs => {
+                            ctx.set(
+                                x,
+                                y,
+                                RGB::from_u8(64, 64, 64),
+                                RGB::from_u8(0, 0, 0),
+                                rltk::to_cp437('>'),
                             );
                         }
                     }
@@ -209,7 +224,7 @@ impl Map {
         }
     }
 
-    pub fn new_map_rooms_and_corridors() -> Map {
+    pub fn new_map_rooms_and_corridors(depth: i32) -> Map {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAPCOUNT],
             rooms: Vec::new(),
@@ -218,6 +233,7 @@ impl Map {
             revealed_tiles: HashSet::new(),
             blocked_tiles: HashSet::new(),
             tile_content: vec![Vec::new(); MAPCOUNT],
+            depth,
         };
 
         const MAX_ROOMS: i32 = 38;
@@ -262,6 +278,10 @@ impl Map {
                 map.rooms.push(new_room);
             }
         }
+
+        let stairs_position = map.rooms[map.rooms.len() - 1].center();
+        let stairs_idx = map.xy_flat(stairs_position.x, stairs_position.y);
+        map.tiles[stairs_idx] = TileType::DownStairs;
 
         map.populate_blocked();
 

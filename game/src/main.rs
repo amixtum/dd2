@@ -76,7 +76,7 @@ fn main() -> rltk::BError {
             game.register::<Balance>();
             game.register::<WantsToFallover>();
 
-            let map = Map::new_map_rooms_and_corridors();
+            let map = Map::new_map_rooms_and_corridors(1);
 
             let player_pos = map.rooms[0].center();
             let player = spawner::spawn_player(&mut game.state.ecs, player_pos.x, player_pos.y);
