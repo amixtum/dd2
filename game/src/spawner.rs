@@ -13,7 +13,7 @@ use crate::{
 };
 
 pub const MAX_MONSTERS: i32 = 4;
-pub const MAX_ITEMS: i32 = 2;
+pub const MAX_ITEMS: i32 = 4;
 
 pub fn spawn_player(ecs: &mut World, x: i32, y: i32) -> Entity {
     ecs.create_entity()

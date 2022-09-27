@@ -11,6 +11,7 @@ pub mod player;
 pub mod spawner;
 pub mod state;
 pub mod visibility_system;
+pub mod damage_system;
 
 use components::AreaOfEffect;
 use components::Balance;

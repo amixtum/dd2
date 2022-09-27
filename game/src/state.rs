@@ -3,10 +3,11 @@ use rltk::{GameState, Point, Rltk};
 use specs::prelude::*;
 
 use crate::components::{Ranged, Viewshed, WantsToDropItem, WantsToUseItem};
+use crate::damage_system::DamageSystem;
 use crate::gui::ItemMenuResult;
 use crate::inventory_system::{ItemCollectionSystem, ItemUseSystem};
 use crate::item_drop_system::ItemDropSystem;
-use crate::map::Map;
+use crate::map::{Map, self};
 use crate::map_indexing_system::MapIndexingSystem;
 use crate::movement_system::{SpeedBalanceSystem, MovementSystem, FalloverSystem};
 use crate::player::{look_mode_input, ranged_targeting_input, Player};
@@ -54,12 +55,15 @@ impl State {
         let mut map_index = MapIndexingSystem {};
         let mut pickup = ItemCollectionSystem {};
         let mut drop_system = ItemDropSystem {};
-        let mut potion_system = ItemUseSystem {};
+        let mut item_use_system = ItemUseSystem {};
         let mut speed_balance = SpeedBalanceSystem {};
         let mut move_system = MovementSystem {};
         let mut fallover_system = FalloverSystem {};
+        let mut damage_system = DamageSystem{};
 
-        potion_system.run_now(&self.ecs);
+        item_use_system.run_now(&self.ecs);
+
+        damage_system.run_now(&self.ecs);
 
         pickup.run_now(&self.ecs);
         drop_system.run_now(&self.ecs);
@@ -100,6 +104,7 @@ impl GameState for State {
             }
             RunState::PlayerTurn => {
                 self.run_systems_player();
+                map::cleanup_dead(&mut self.ecs);
                 newrunstate = RunState::AwaitingInput;
                 self.map_drawn = false;
             }
@@ -214,16 +219,19 @@ impl GameState for State {
                         self.map_drawn = false;
                     }
                     ItemMenuResult::Selected => {
-                        let mut intent = self.ecs.write_storage::<WantsToUseItem>();
-                        intent
-                            .insert(
-                                *self.ecs.fetch::<Entity>(),
-                                WantsToUseItem {
-                                    item,
-                                    target: selection.1,
-                                },
-                            )
-                            .expect("Unable to insert intent to use ranged item");
+                        {
+                            let mut intent = self.ecs.write_storage::<WantsToUseItem>();
+                            intent
+                                .insert(
+                                    *self.ecs.fetch::<Entity>(),
+                                    WantsToUseItem {
+                                        item,
+                                        target: selection.1,
+                                    },
+                                )
+                                .expect("Unable to insert intent to use ranged item");
+                        }
+
                         newrunstate = RunState::PlayerTurn;
                         self.map_drawn = false;
                     }

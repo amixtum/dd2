@@ -1,9 +1,9 @@
 use std::collections::{HashSet};
 
-use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rect, RGB, PointF};
+use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rect, RGB, PointF, console};
 use specs::{Entity, Join, World, WorldExt};
 
-use crate::{components::{Viewshed, Balance, Speed}, player::{Player}, movement_system::{MovementSystem, PLAYER_INST, FALLOVER, BALANCE_DAMP, SPEED_DAMP}};
+use crate::{components::{Viewshed, Balance, Speed, CombatStats, Position}, player::{Player}, movement_system::{MovementSystem, PLAYER_INST, FALLOVER, BALANCE_DAMP, SPEED_DAMP}};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum TileType {
@@ -65,6 +65,36 @@ impl Map {
 
         !self.blocked_tiles.contains(&Point::new(x, y))
     }
+}
+
+pub fn cleanup_dead(ecs: &mut World) {
+
+    let mut to_delete = Vec::new();
+    {
+        let combat_stats = ecs.write_storage::<CombatStats>();
+        let positions = ecs.read_storage::<Position>();
+        let ents = ecs.entities();
+        let player_ent = ecs.fetch::<Entity>();
+        for (ent, stats, pos) in (&ents, &combat_stats, &positions).join() {
+            if stats.hp <= 0 {
+                if ent == *player_ent {
+                    console::log("Player is dead");
+                }
+                else {
+                    to_delete.push((ent, pos.point));
+                }
+            }
+        }
+    }
+
+    while to_delete.len() > 0 {
+        if let Some((ent, pos)) = to_delete.pop() {
+            ecs.delete_entity(ent).expect("Unable to delete entity");
+
+            let mut map = ecs.fetch_mut::<Map>();
+            map.blocked_tiles.remove(&pos);
+        }
+    } 
 }
 
 fn get_simulation_color(map: &Map, speed: &Speed, balance: &Balance, player_pos: &Point, map_pos: &Point) -> RGB {
