@@ -1,6 +1,9 @@
 use specs::prelude::*;
 
-use crate::{gamelog::GameLog, components::{SufferDamage, CombatStats, Name}};
+use crate::{
+    components::{CombatStats, Name, SufferDamage},
+    gamelog::GameLog,
+};
 
 pub struct DamageSystem {}
 
@@ -15,14 +18,7 @@ impl<'a> System<'a> for DamageSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (
-            player_ent,
-            mut log,
-            ents,
-            names,
-            mut damages,
-            mut combat_stats, 
-        ) = data;
+        let (player_ent, mut log, ents, names, mut damages, mut combat_stats) = data;
 
         for (ent, name, dmg, stats) in (&ents, &names, &mut damages, &mut combat_stats).join() {
             let mut sum_dmg = 0;
@@ -33,9 +29,11 @@ impl<'a> System<'a> for DamageSystem {
 
             if ent == *player_ent {
                 log.entries.push(format!("You take {} damage", sum_dmg));
-            }
-            else {
-                log.entries.push(format!("{} takes {} damage, leaving them with {} hp", name.name, sum_dmg, stats.hp));
+            } else {
+                log.entries.push(format!(
+                    "{} takes {} damage, leaving them with {} hp",
+                    name.name, sum_dmg, stats.hp
+                ));
             }
         }
 

@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
-use rltk::{Point, RandomNumberGenerator, Rect, RGB, PointF};
+use rltk::{Point, PointF, RandomNumberGenerator, Rect, RGB};
 use specs::prelude::*;
 
 use crate::{
     components::{
-        AreaOfEffect, BlocksTile, CombatStats, Consumable, InflictsDamage, Item, Monster, Name,
-        Position, ProvidesHealing, Ranged, Renderable, Viewshed, Speed, Balance,
+        AreaOfEffect, Balance, BlocksTile, CombatStats, Consumable, InflictsDamage, Item, Monster,
+        Name, Position, ProvidesHealing, Ranged, Renderable, Speed, Viewshed,
     },
     map::MAPWIDTH,
     player::Player,

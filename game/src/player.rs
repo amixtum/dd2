@@ -1,9 +1,9 @@
-use rltk::{Point, Rltk, VirtualKeyCode, PointF};
+use rltk::{Point, PointF, Rltk, VirtualKeyCode};
 
 use specs::prelude::*;
 use specs_derive::Component;
 
-use crate::components::{Item, Viewshed, WantsToPickUpItem, InstVel};
+use crate::components::{InstVel, Item, Viewshed, WantsToPickUpItem};
 use crate::gamelog::GameLog;
 use crate::map::Map;
 use crate::movement_system::PLAYER_INST;
@@ -25,7 +25,7 @@ pub fn try_move_player(delta_x: i32, delta_y: i32, ecs: &mut World) {
     let mut vel = PointF::new(delta_x as f32, delta_y as f32).normalized();
     vel.x *= PLAYER_INST;
     vel.y *= PLAYER_INST;
-    
+
     InstVel::new_inst_vel(&mut inst_vels, *player_entity, vel);
 }
 

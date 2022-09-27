@@ -3,7 +3,7 @@ use specs::prelude::*;
 use util::vec_ops::{self};
 
 use crate::{
-    components::{Balance, InstVel, Position, Speed, WantsToFallover, CombatStats},
+    components::{Balance, CombatStats, InstVel, Position, Speed, WantsToFallover},
     map::Map,
 };
 
@@ -31,9 +31,16 @@ impl<'a> System<'a> for FalloverSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let ( mut fallovers, mut speeds, mut balances, mut combat_stats) = data;
+        let (mut fallovers, mut speeds, mut balances, mut combat_stats) = data;
 
-        for ( _fall, speed, balance, _stats) in (&mut fallovers, &mut speeds, &mut balances, &mut combat_stats).join() {
+        for (_fall, speed, balance, _stats) in (
+            &mut fallovers,
+            &mut speeds,
+            &mut balances,
+            &mut combat_stats,
+        )
+            .join()
+        {
             speed.speed = PointF::new(0.0, 0.0);
             balance.bal = PointF::new(0.0, 0.0);
             //stats.hp = std::cmp::max(0, stats.hp - 1);
@@ -86,7 +93,7 @@ impl<'a> System<'a> for SpeedBalanceSystem {
             // clamp to max_speed
             if mag > MAX_SPEED {
                 speed.speed *= MAX_SPEED / speed.speed.mag();
-            
+
             // zero speed below this threshold
             } else if mag <= ZERO_SPEED {
                 speed.speed = PointF::new(0.0, 0.0);
@@ -98,7 +105,6 @@ impl<'a> System<'a> for SpeedBalanceSystem {
                     .insert(entity, WantsToFallover {})
                     .expect("Unable to insert intent to fallover");
             }
-
             // zero balance below this threshold
             else if balance.bal.mag() <= ZERO_BALANCE {
                 balance.bal = PointF::new(0.0, 0.0);
@@ -138,8 +144,7 @@ impl MovementSystem {
             let units = vec_ops::discrete_jmp((direction_diff.x, direction_diff.y));
             let orthogonality = (2.0 * last_speed.mag() * inst_vel.mag()
                 - last_speed.dot(inst_vel))
-                / (2.0 * last_speed.mag()
-                * inst_vel.mag());
+                / (2.0 * last_speed.mag() * inst_vel.mag());
 
             balance.x += units.1.signum() as f32 * orthogonality * LEAN_FACTOR;
             balance.y += units.0.signum() as f32 * orthogonality * LEAN_FACTOR;
@@ -164,7 +169,16 @@ impl<'a> System<'a> for MovementSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (entities, mut map, mut _rng, mut player_pos, player_entity, mut positions, speeds, mut fallovers) = data;
+        let (
+            entities,
+            mut map,
+            mut _rng,
+            mut player_pos,
+            player_entity,
+            mut positions,
+            speeds,
+            mut fallovers,
+        ) = data;
 
         let mut sort_by_speed = (&entities, &mut positions, &speeds)
             .join()

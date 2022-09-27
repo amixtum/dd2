@@ -1,9 +1,13 @@
-use std::collections::{HashSet};
+use std::collections::HashSet;
 
-use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rect, RGB, PointF, console};
+use rltk::{console, Algorithm2D, BaseMap, Point, PointF, RandomNumberGenerator, Rect, RGB};
 use specs::{Entity, Join, World, WorldExt};
 
-use crate::{components::{Viewshed, Balance, Speed, CombatStats, Position}, player::{Player}, movement_system::{MovementSystem, PLAYER_INST, FALLOVER, BALANCE_DAMP, SPEED_DAMP}};
+use crate::{
+    components::{Balance, CombatStats, Position, Speed, Viewshed},
+    movement_system::{MovementSystem, BALANCE_DAMP, FALLOVER, PLAYER_INST, SPEED_DAMP},
+    player::Player,
+};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum TileType {
@@ -68,7 +72,6 @@ impl Map {
 }
 
 pub fn cleanup_dead(ecs: &mut World) {
-
     let mut to_delete = Vec::new();
     {
         let combat_stats = ecs.write_storage::<CombatStats>();
@@ -79,8 +82,7 @@ pub fn cleanup_dead(ecs: &mut World) {
             if stats.hp <= 0 {
                 if ent == *player_ent {
                     console::log("Player is dead");
-                }
-                else {
+                } else {
                     to_delete.push((ent, pos.point));
                 }
             }
@@ -94,11 +96,22 @@ pub fn cleanup_dead(ecs: &mut World) {
             let mut map = ecs.fetch_mut::<Map>();
             map.blocked_tiles.remove(&pos);
         }
-    } 
+    }
 }
 
-fn get_simulation_color(map: &Map, speed: &Speed, balance: &Balance, player_pos: &Point, map_pos: &Point) -> RGB {
-    let inst_v = PointF::new(map_pos.x as f32 - player_pos.x as f32, map_pos.y as f32 - player_pos.y as f32).normalized() * PLAYER_INST;
+fn get_simulation_color(
+    map: &Map,
+    speed: &Speed,
+    balance: &Balance,
+    player_pos: &Point,
+    map_pos: &Point,
+) -> RGB {
+    let inst_v = PointF::new(
+        map_pos.x as f32 - player_pos.x as f32,
+        map_pos.y as f32 - player_pos.y as f32,
+    )
+    .normalized()
+        * PLAYER_INST;
 
     let sim_x = (player_pos.x as f32 + speed.speed.x * SPEED_DAMP + inst_v.x)
         .clamp(player_pos.x as f32 - 1.0, player_pos.x as f32 + 1.0)
@@ -114,8 +127,7 @@ fn get_simulation_color(map: &Map, speed: &Speed, balance: &Balance, player_pos:
     let color: RGB;
     if fallover < 1.0 && !map.blocked_tiles.contains(&Point::new(sim_x, sim_y)) {
         color = RGB::from_f32(1.0 - fallover, 0.0, fallover);
-    }
-    else {
+    } else {
         color = RGB::from_f32(0.0, 1.0, 0.0);
     }
 
@@ -131,7 +143,9 @@ impl Map {
         let player_pos = ecs.fetch::<Point>();
         let map = ecs.fetch::<Map>();
 
-        for (_player, viewshed, balance, speed) in (&mut players, &mut viewsheds, &balances, &speeds).join() {
+        for (_player, viewshed, balance, speed) in
+            (&mut players, &mut viewsheds, &balances, &speeds).join()
+        {
             let mut x = 0;
             let mut y = 0;
 
@@ -141,22 +155,10 @@ impl Map {
                     let color = get_simulation_color(&map, &speed, &balance, &player_pos, &point);
                     match tile {
                         TileType::Floor => {
-                            ctx.set(
-                                x,
-                                y,
-                                color,
-                                RGB::from_u8(0, 0, 0),
-                                rltk::to_cp437('.'),
-                            );
+                            ctx.set(x, y, color, RGB::from_u8(0, 0, 0), rltk::to_cp437('.'));
                         }
                         TileType::Wall => {
-                            ctx.set(
-                                x,
-                                y,
-                                color,
-                                RGB::from_u8(0, 0, 0),
-                                rltk::to_cp437('#'),
-                            );
+                            ctx.set(x, y, color, RGB::from_u8(0, 0, 0), rltk::to_cp437('#'));
                         }
                     }
                 } else if map.revealed_tiles.contains(&point) {
