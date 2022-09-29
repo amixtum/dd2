@@ -6,7 +6,7 @@ Dangerous Deliveries:
     in order to better simulate running.
 
     Space:
-      Every point has an (x, y, height) position vector
+      Every point has an (x, y) position vector
 
     Movement:
       Pressing a movement key (8 directional) sets the instantaneous
