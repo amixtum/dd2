@@ -1,4 +1,6 @@
 Dangerous Deliveries:
+  Ideas:
+     
   Mechanics:
     The Player can move from one point to another, where each point
     contains an Obstacle that may or may not be traversable by the player.
