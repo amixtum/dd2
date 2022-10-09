@@ -1,8 +1,6 @@
 Dangerous Deliveries:
-  It is your first day on the job as a delivery skater in the Grind Zone
-  Grind, skate, and reshape the world around you to deliver all the packages
-, no matter what.
-
+  Ideas:
+     
   Mechanics:
     The Player can move from one point to another, where each point
     contains an Obstacle that may or may not be traversable by the player.
@@ -10,16 +8,12 @@ Dangerous Deliveries:
     in order to better simulate running.
 
     Space:
-      Every point has an (x, y, height) position vector
+      Every point has an (x, y) position vector
 
     Movement:
       Pressing a movement key (8 directional) sets the instantaneous
       velocity of the Player. Pressing the wait key sets the instantaneous
       velocity of the Player to 0.
-
-      The exception to this rule is grinding Rails, which resets the 
-      Speed of the Player to align with the Rail, taking into account 
-      its most recent Speed's magnitude
 
       Only adjacent points are traversable:
         i.e. a point p is traversable iff p_x in [x - 1, x + 1],
@@ -48,15 +42,15 @@ Dangerous Deliveries:
         with:
           balance_damp = a number in (0, 1)
 
-      A Balance vector is modified when (1) a player moves perpendicularly
-      (in any axis) to their current Speed vector, (2) moves opposite
-      to their current Speed vector or (3) encounters an obstacle.
-      In the first two cases, the Balance vector is further
-      modified by the equation:
-        Balance_x_t += sign of inst_y * 
-                       (1 - dot(normalize(inst_v), 
-                                normalize(Speed_[i - 1]))) * turn_factor
+      The Balance vector is further modified by the equation:
+        Balance_x_t += 
+          sign of diff_y * 
+          {[2 * mag(last_speed) * mag(inst_v) -  dot(inst_v, last_speed)] /
+           2 * mag(last_speed) * mag(inst_v)} *
+           turn_factor
+
         with:
+          last_speed = Speed_[t-1]
           turn_factor = a number in (0, 1)
         and the same for Balance_y_t with x and y switched
 
@@ -68,19 +62,7 @@ Dangerous Deliveries:
     Obstacles 
       affect a player's Balance, Speed and their ability to move 
       around the cartesian plane (e.g. an obstacle only allows movement in 
-      one direction) All obstacles have an (x, y, height) position. Moving
-      up one height reduces Speed by up_speed_factor, and moving down one height
-      increases speed by down_speed_factor
-      i.e.
-        Moving up a level:
-          Speed_i_t *= up_speed_factor
-          with:
-            up_speed_factor in (0, 1)
-        Moving down a level:
-          Speed_i_t *= down_speed_factor
-          with:
-            down_speed_factor in (1, 2)
-      Attempting to move into an obstacle that has height 
+      one direction) All obstacles have an (x, y) position.     
 
       Platform:
         * x y position
@@ -89,27 +71,19 @@ Dangerous Deliveries:
         * x y position
         * height
         * +/- x y direction (normal vectors)
-        * moving onto the rail "grinds" the rail,
-          * moves the Player along the rail, dampening the other
-            axes of their Speed
+        * Either
+          1. moving onto the rail "grinds" the rail,
+            * moves the Player along the rail, dampening the other
+              axes of their Speed
+          2. Moving onto the rail only adds speed in the direction of
+             the rail. The player can only "grind" a rail by moving
+             in its direction. They will have to take into
+             account the rail's contribution to their speed
+             in order to effectively use it to navigate.
+             
         * while grinding the rail
-          * if the Player grinded the rail upwards, i.e. the player's height has increased
-            since grinding the rail, then the player falls over to whichever side their Balance
-            vector is most aligned with
           * if a player's speed reaches (0, 0) they fall off the rail
-        Pit:
+            onto the nearest platform
+        Wall:
           * x y position
-          * falling into a pit is game over
-
-    Score
-      A function that maps the amount of time the delivery took to a number
-
-    Goals
-      Objectives for the player to reach (a fixed position)
-      When all the goals have been reached, the game ends
-
-    Opponents
-      Platformers
-        they only move when on Platforms
-        otherwise they let the Rails move them
-        always move towards a fixed objective until it is reached
+          * bumping into a wall makes the player fall over
