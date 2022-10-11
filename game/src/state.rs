@@ -12,7 +12,7 @@ use crate::inventory_system::{ItemCollectionSystem, ItemUseSystem};
 use crate::item_drop_system::ItemDropSystem;
 use crate::map::{self, Map, MAPHEIGHT, MAPWIDTH};
 use crate::map_indexing_system::MapIndexingSystem;
-use crate::movement_system::{FalloverSystem, MovementSystem, SpeedBalanceSystem};
+use crate::movement_system::{FalloverSystem, MovementSystem, VelocityBalanceSystem};
 use crate::player::{look_mode_input, ranged_targeting_input, Player};
 use crate::visibility_system::VisibilitySystem;
 
@@ -62,7 +62,7 @@ impl State {
         let mut pickup = ItemCollectionSystem {};
         let mut drop_system = ItemDropSystem {};
         let mut item_use_system = ItemUseSystem {};
-        let mut speed_balance = SpeedBalanceSystem {};
+        let mut speed_balance = VelocityBalanceSystem {};
         let mut move_system = MovementSystem {};
         let mut fallover_system = FalloverSystem {};
         let mut damage_system = DamageSystem {};

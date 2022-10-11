@@ -116,8 +116,8 @@ pub struct AreaOfEffect {
 }
 
 #[derive(Component, Debug)]
-pub struct Speed {
-    pub speed: PointF,
+pub struct Velocity {
+    pub vel: PointF,
 }
 
 #[derive(Component, Debug)]

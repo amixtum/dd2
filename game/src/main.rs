@@ -27,7 +27,7 @@ use components::Monster;
 use components::Name;
 use components::ProvidesHealing;
 use components::Ranged;
-use components::Speed;
+use components::Velocity;
 use components::SufferDamage;
 use components::WantsToDropItem;
 use components::WantsToFallover;
@@ -71,7 +71,7 @@ fn main() -> rltk::BError {
             game.register::<Ranged>();
             game.register::<InflictsDamage>();
             game.register::<AreaOfEffect>();
-            game.register::<Speed>();
+            game.register::<Velocity>();
             game.register::<InstVel>();
             game.register::<Balance>();
             game.register::<WantsToFallover>();

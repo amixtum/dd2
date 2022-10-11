@@ -4,7 +4,7 @@ use rltk::{console, Algorithm2D, BaseMap, Point, PointF, RandomNumberGenerator, 
 use specs::{Entity, Join, World, WorldExt};
 
 use crate::{
-    components::{Balance, CombatStats, Position, Speed, Viewshed},
+    components::{Balance, CombatStats, Position, Velocity, Viewshed},
     movement_system::{MovementSystem, BALANCE_DAMP, FALLOVER, PLAYER_INST, SPEED_DAMP},
     player::Player,
 };
@@ -104,7 +104,7 @@ pub fn cleanup_dead(ecs: &mut World) {
 
 fn get_simulation_color(
     map: &Map,
-    speed: &Speed,
+    speed: &Velocity,
     balance: &Balance,
     player_pos: &Point,
     map_pos: &Point,
@@ -116,15 +116,15 @@ fn get_simulation_color(
     .normalized()
         * PLAYER_INST;
 
-    let sim_x = (player_pos.x as f32 + speed.speed.x * SPEED_DAMP + inst_v.x)
+    let sim_x = (player_pos.x as f32 + speed.vel.x * SPEED_DAMP + inst_v.x)
         .clamp(player_pos.x as f32 - 1.0, player_pos.x as f32 + 1.0)
         .round() as i32;
-    let sim_y = (player_pos.y as f32 + speed.speed.y * SPEED_DAMP + inst_v.y)
+    let sim_y = (player_pos.y as f32 + speed.vel.y * SPEED_DAMP + inst_v.y)
         .clamp(player_pos.y as f32 - 1.0, player_pos.y as f32 + 1.0)
         .round() as i32;
 
     let balance = balance.bal * BALANCE_DAMP;
-    let simulate_balance = MovementSystem::compute_balance(balance, speed.speed, inst_v);
+    let simulate_balance = MovementSystem::compute_balance(balance, speed.vel, inst_v);
 
     let fallover = simulate_balance.mag() / FALLOVER;
     let color: RGB;
@@ -142,7 +142,7 @@ impl Map {
         let mut viewsheds = ecs.write_storage::<Viewshed>();
         let mut players = ecs.write_storage::<Player>();
         let balances = ecs.read_storage::<Balance>();
-        let speeds = ecs.read_storage::<Speed>();
+        let speeds = ecs.read_storage::<Velocity>();
         let player_pos = ecs.fetch::<Point>();
         let map = ecs.fetch::<Map>();
 
