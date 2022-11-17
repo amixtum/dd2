@@ -3,8 +3,9 @@ use rltk::{BError, BTerm};
 use specs::prelude::*;
 
 use crate::{
+    gui::MainMenuSelection,
     map::{MAPHEIGHT, MAPWIDTH},
-    state::State,
+    state::{RunState, State},
 };
 
 pub struct Game {
@@ -33,6 +34,12 @@ impl Game {
                     draw_inventory: false,
                     look_cursor: (-1, -1),
                     last_mouse_position: (-1, -1),
+                    mapgen_next_state: Some(RunState::MainMenu {
+                        menu_selection: MainMenuSelection::NewGame,
+                    }),
+                    mapgen_history: Vec::new(),
+                    mapgen_index: 0,
+                    mapgen_timer: 0.0,
                 };
 
                 Ok(Game { context, state })

@@ -34,7 +34,7 @@ pub fn help_screen(ctx: &mut rltk::Rltk, width: u32, _height: u32) {
     right_col.push(String::from("C or N"));
 
     left_col.push((String::from("Wait (don't increase speed or turn)"), None));
-    right_col.push(String::from("1 or Period"));
+    right_col.push(String::from("1 (one) or Period"));
 
     left_col.push((String::from("Game Functions"), Some(RGB::named(rltk::CYAN))));
     right_col.push(String::from(""));
@@ -42,8 +42,20 @@ pub fn help_screen(ctx: &mut rltk::Rltk, width: u32, _height: u32) {
     left_col.push((String::from("Look Mode"), None));
     right_col.push(String::from("Semicolon"));
 
-    left_col.push((String::from("Get Information or Give Package"), None));
+    left_col.push((String::from("Get Item"), None));
     right_col.push(String::from("G"));
+
+    left_col.push((String::from("Drop Item"), None));
+    right_col.push(String::from("Minus"));
+
+    left_col.push((String::from("Inventory"), None));
+    right_col.push(String::from("I"));
+
+    left_col.push((String::from("Go Down Stairs"), None));
+    right_col.push(String::from("0 (zero)"));
+
+    //left_col.push((String::from("Get Information or Give Package"), None));
+    //right_col.push(String::from("G"));
 
     //left_col.push(String::from("Game Functions"));
     //right_col.push(String::from(""));
@@ -64,7 +76,7 @@ pub fn help_screen(ctx: &mut rltk::Rltk, width: u32, _height: u32) {
         match &left_col[col].1 {
             None => {
                 ctx.print(1, sc_y, &left_col[col].0);
-            },
+            }
             Some(color) => {
                 ctx.print_color(1, sc_y, *color, RGB::named(rltk::BLACK), &left_col[col].0);
             }
@@ -140,11 +152,12 @@ pub fn help_screen(ctx: &mut rltk::Rltk, width: u32, _height: u32) {
         sc_y,
         RGB::named(rltk::GRAY),
         RGB::named(rltk::BLACK),
-        "You are on a skateboard. Press a movement key to increase speed or turn.",
+        "Press a movement key to increase speed or turn.",
     );
 
     sc_y += 2;
 
+    /*
     ctx.print_color(
         1,
         sc_y,
@@ -154,6 +167,7 @@ pub fn help_screen(ctx: &mut rltk::Rltk, width: u32, _height: u32) {
     );
 
     sc_y += 2;
+    */
 
     ctx.print(1, sc_y, "Esc to Return");
 }

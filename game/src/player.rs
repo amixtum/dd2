@@ -95,7 +95,7 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
             VirtualKeyCode::C | VirtualKeyCode::N => {
                 try_move_player(1, 1, &mut gs.ecs);
             }
-            VirtualKeyCode::Period => {
+            VirtualKeyCode::Period | VirtualKeyCode::Key1 => {
                 return RunState::PlayerTurn;
             }
             VirtualKeyCode::Semicolon => {
@@ -111,7 +111,7 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
                 return RunState::ShowDropItem;
             }
             VirtualKeyCode::Escape => {
-                return RunState::ShowHelpMenu{ shown: false };
+                return RunState::ShowHelpMenu { shown: false };
             }
             VirtualKeyCode::Key0 => {
                 if try_next_level(&mut gs.ecs) {
@@ -133,10 +133,10 @@ pub fn try_next_level(ecs: &mut World) -> bool {
     let player_idx = map.xy_flat(player_pos.x, player_pos.y);
     if map.tiles[player_idx] == TileType::DownStairs {
         return true;
-    }
-    else {
+    } else {
         let mut log = ecs.fetch_mut::<GameLog>();
-        log.entries.push("There is no way down from here".to_string());
+        log.entries
+            .push("There is no way down from here".to_string());
         return false;
     }
 }

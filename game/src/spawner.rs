@@ -104,8 +104,8 @@ fn monster<S: ToString>(ecs: &mut World, x: i32, y: i32, glyph: rltk::FontCharTy
 }
 
 pub fn spawn_room(ecs: &mut World, room: &Rect) {
-    let mut monster_spawn_points = HashSet::new();
-    let mut item_spawn_points = HashSet::new();
+    let mut monster_spawn_points = Vec::new();
+    let mut item_spawn_points = Vec::new();
 
     {
         let mut rng = ecs.write_resource::<RandomNumberGenerator>();
@@ -116,13 +116,13 @@ pub fn spawn_room(ecs: &mut World, room: &Rect) {
             let x = (room.x1 + rng.roll_dice(1, i32::abs(room.x2 - room.x1 - 1))) as usize;
             let y = (room.y1 + rng.roll_dice(1, i32::abs(room.y2 - room.y1 - 1))) as usize;
             let idx = (y * MAPWIDTH) + x;
-            monster_spawn_points.insert(idx);
+            monster_spawn_points.push(idx);
         }
         for _ in 0..num_items {
             let x = (room.x1 + rng.roll_dice(1, i32::abs(room.x2 - room.x1 - 1))) as usize;
             let y = (room.y1 + rng.roll_dice(1, i32::abs(room.y2 - room.y1 - 1))) as usize;
             let idx = (y * MAPWIDTH) + x;
-            item_spawn_points.insert(idx);
+            item_spawn_points.push(idx);
         }
     }
 

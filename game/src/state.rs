@@ -2,19 +2,22 @@ use rltk::{GameState, Point, Rltk};
 
 use specs::prelude::*;
 
-use crate::components::{Ranged, Viewshed, WantsToDropItem, WantsToUseItem, InBackpack, CombatStats};
+use crate::components::{
+    CombatStats, InBackpack, Ranged, Viewshed, WantsToDropItem, WantsToUseItem,
+};
 use crate::damage_system::DamageSystem;
 use crate::gamelog::GameLog;
 use crate::gui::{self};
-use crate::gui::ItemMenuResult;
-use crate::{help_viewer, spawner};
+use crate::gui::{ItemMenuResult, MainMenuSelection};
 use crate::inventory_system::{ItemCollectionSystem, ItemUseSystem};
 use crate::item_drop_system::ItemDropSystem;
 use crate::map::{self, Map, MAPHEIGHT, MAPWIDTH};
+use crate::map_builders::MapBuilder;
 use crate::map_indexing_system::MapIndexingSystem;
 use crate::movement_system::{FalloverSystem, MovementSystem, VelocityBalanceSystem};
-use crate::player::{look_mode_input, ranged_targeting_input, Player};
+use crate::player::{self, look_mode_input, ranged_targeting_input, Player};
 use crate::visibility_system::VisibilitySystem;
+use crate::{help_viewer, map_builders, SHOW_MAPGEN_VISUALIZER};
 
 use super::components::Position;
 use super::components::Renderable;
@@ -39,20 +42,31 @@ pub enum RunState {
     MainMenu {
         menu_selection: gui::MainMenuSelection,
     },
-    ShowHelpMenu{
+    ShowHelpMenu {
         shown: bool,
     },
     NextLevel,
+    MapGeneration,
 }
 
 pub struct State {
     pub ecs: World,
+
+    // sentinels to make sure we don't draw more than we need to
     pub map_drawn: bool,
     pub redraw_menu: bool,
     pub redraw_targeting: bool,
     pub draw_inventory: bool,
+
+    // lookmode variables
     pub look_cursor: (i32, i32),
     pub last_mouse_position: (i32, i32),
+
+    // mapgen variables
+    pub mapgen_next_state: Option<RunState>, // where to go after mapgen
+    pub mapgen_history: Vec<Map>,            // copy of the mapgen history
+    pub mapgen_index: usize,                 // current index into mapgen history
+    pub mapgen_timer: f32,                   // times mapgen animation
 }
 
 impl State {
@@ -94,7 +108,7 @@ impl State {
         let backpack = self.ecs.read_storage::<InBackpack>();
         let player_entity = self.ecs.fetch::<Entity>();
 
-        let mut to_delete : Vec<Entity> = Vec::new();
+        let mut to_delete: Vec<Entity> = Vec::new();
         for entity in entities.join() {
             let mut should_delete = true;
 
@@ -112,7 +126,7 @@ impl State {
                 }
             }
 
-            if should_delete { 
+            if should_delete {
                 to_delete.push(entity);
             }
         }
@@ -120,47 +134,60 @@ impl State {
         to_delete
     }
 
-    fn goto_next_level(&mut self) {
+    fn goto_next_level(&mut self, new_depth: i32) {
         // delete all non-persistent entities
         let to_delete = self.entities_to_remove_on_level_change();
         for target in to_delete {
-            self.ecs.delete_entity(target).expect("Unable to delete entity");
+            self.ecs
+                .delete_entity(target)
+                .expect("Unable to delete entity");
         }
 
-        // generate a new map with depth + 1
-        let worldmap;
-        {
-            let mut worldmap_resource = self.ecs.write_resource::<Map>();
-            let current_depth = worldmap_resource.depth;
-            *worldmap_resource = Map::new_map_rooms_and_corridors(current_depth + 1);
-            worldmap = worldmap_resource.clone();
-        }
-
-        // spawn entities in rooms
-        for room in worldmap.rooms.iter().skip(1) {
-            spawner::spawn_room(&mut self.ecs, room);
-        }
-
-        // store the new player position
-        let player_pos = worldmap.rooms[0].center();
-        let mut ppos_res = self.ecs.write_resource::<Point>();
-        *ppos_res = player_pos;
-
-        // update the player's Position component
-        let mut position_comps = self.ecs.write_storage::<Position>();
-        let player_ent = self.ecs.fetch::<Entity>();
-        let player_pos_comp = position_comps.get_mut(*player_ent);
-        if let Some(pos_comp) = player_pos_comp {
-            pos_comp.point = player_pos;
-        }
+        // generate new map
+        self.generate_world_map(new_depth);
 
         // Notify the player and give them some health
+        let player_ent = self.ecs.fetch::<Entity>();
         let mut log = self.ecs.fetch_mut::<GameLog>();
-        log.entries.push("You descend to the next level, and take a moment to heal.".to_string());
+        log.entries
+            .push("You descend to the next level, and take a moment to heal.".to_string());
         let mut player_health_store = self.ecs.write_storage::<CombatStats>();
         let player_health = player_health_store.get_mut(*player_ent);
         if let Some(player_health) = player_health {
             player_health.hp = i32::max(player_health.hp, player_health.max_hp / 2);
+        }
+    }
+
+    pub fn generate_world_map(&mut self, new_depth: i32) {
+        // reset mapgen vars
+        self.mapgen_history.clear();
+        self.mapgen_index = 0;
+        self.mapgen_timer = 0.0;
+
+        let mut builder = map_builders::random_builder(new_depth);
+        builder.build_map(&mut self.ecs);
+
+        // clone mapgen history from new map
+        self.mapgen_history = builder.get_snapshot_history();
+
+        let ecs_ptr = &mut self.ecs as *mut World;
+
+        let player_start;
+        unsafe {
+            let mut worldmap_resource = (*ecs_ptr).write_resource::<Map>();
+            let mut player_position = (*ecs_ptr).write_resource::<Point>();
+            *worldmap_resource = builder.get_map();
+            *player_position = builder.get_starting_position();
+            player_start = *player_position;
+        }
+
+        builder.spawn_entities(&mut self.ecs);
+
+        let mut position_components = self.ecs.write_storage::<Position>();
+        let player_entity = self.ecs.fetch::<Entity>();
+        let player_pos_comp = position_components.get_mut(*player_entity);
+        if let Some(pos_comp) = player_pos_comp {
+            pos_comp.point = Point::new(player_start.x, player_start.y);
         }
     }
 
@@ -182,15 +209,204 @@ impl State {
                 _ => {
                     return RunState::ShowHelpMenu { shown: true };
                 }
+            },
+        }
+    }
+
+    fn tick_prerun(&mut self) -> RunState {
+        self.run_systems_player();
+        self.map_drawn = false;
+
+        RunState::AwaitingInput
+    }
+
+    fn tick_player_turn(&mut self) -> RunState {
+        self.run_systems_player();
+        map::cleanup_dead(&mut self.ecs);
+        self.map_drawn = false;
+        RunState::AwaitingInput
+    }
+
+    fn tick_next_level(&mut self) -> RunState {
+        let current_depth = self.ecs.read_resource::<Map>().depth;
+        self.goto_next_level(current_depth + 1);
+        RunState::PreRun
+    }
+
+    fn tick_looking(&mut self, ctx: &mut Rltk) -> RunState {
+        if self.last_mouse_position.0 == -1 {
+            self.last_mouse_position = ctx.mouse_pos();
+        }
+
+        if self.look_cursor.0 == -1 {
+            let player_pos = self.ecs.fetch::<Point>();
+            self.look_cursor.0 = player_pos.x;
+            self.look_cursor.1 = player_pos.y;
+        }
+
+        let look_input = look_mode_input(self, ctx);
+
+        self.look_cursor = look_input.1;
+        look_input.0
+    }
+
+    fn tick_process_inventory(&mut self, ctx: &mut Rltk) -> RunState {
+        let result = gui::process_inventory(self, ctx);
+
+        match result.0 {
+            gui::ItemMenuResult::Cancel => {
+                self.map_drawn = false;
+                return RunState::AwaitingInput;
+            }
+            gui::ItemMenuResult::NoResponse => {
+                return RunState::ProcessInventory;
+            }
+            gui::ItemMenuResult::Selected => {
+                let item_entity = result.1.unwrap();
+                let ranged_items = self.ecs.read_storage::<Ranged>();
+                if let Some(ranged_item) = ranged_items.get(item_entity) {
+                    let player_pos = self.ecs.fetch::<Point>();
+                    self.map_drawn = false;
+                    return RunState::ShowTargeting {
+                        range: ranged_item.range,
+                        item: item_entity,
+                        cursor: *player_pos,
+                    };
+                } else {
+                    let mut intent = self.ecs.write_storage::<WantsToUseItem>();
+                    intent
+                        .insert(
+                            *self.ecs.fetch::<Entity>(),
+                            WantsToUseItem {
+                                item: item_entity,
+                                target: None,
+                            },
+                        )
+                        .expect("Unable to insert intent to use item");
+                    self.map_drawn = false;
+
+                    return RunState::PlayerTurn;
+                }
             }
         }
     }
 
+    fn tick_process_drop_item(&mut self, ctx: &mut Rltk) -> RunState {
+        let result = gui::process_drop_item_menu(self, ctx);
+        match result.0 {
+            gui::ItemMenuResult::Cancel => {
+                self.map_drawn = false;
+                return RunState::AwaitingInput;
+            }
+            gui::ItemMenuResult::NoResponse => {
+                return RunState::ProcessDropItem;
+            }
+            gui::ItemMenuResult::Selected => {
+                let item_entity = result.1.unwrap();
+                let mut intent = self.ecs.write_storage::<WantsToDropItem>();
+                intent
+                    .insert(
+                        *self.ecs.fetch::<Entity>(),
+                        WantsToDropItem { item: item_entity },
+                    )
+                    .expect("Unable to insert intent to drop item");
 
+                self.map_drawn = false;
+                return RunState::PlayerTurn;
+            }
+        }
+    }
+
+    fn tick_show_targeting(
+        &mut self,
+        ctx: &mut Rltk,
+        range: i32,
+        item: Entity,
+        cursor: Point,
+    ) -> RunState {
+        let last_cursor = cursor;
+        let cursor = ranged_targeting_input(self, ctx, cursor, range);
+        let selection = gui::ranged_target_selection(self, ctx, cursor, range);
+        match selection.0 {
+            ItemMenuResult::NoResponse => {
+                if last_cursor != cursor {
+                    gui::ranged_target(self, ctx, cursor, range, item);
+                }
+                return RunState::ShowTargeting {
+                    range,
+                    item,
+                    cursor,
+                };
+            }
+            ItemMenuResult::Cancel => {
+                self.redraw_targeting = true;
+                self.map_drawn = false;
+                return RunState::AwaitingInput;
+            }
+            ItemMenuResult::Selected => {
+                let mut intent = self.ecs.write_storage::<WantsToUseItem>();
+                intent
+                    .insert(
+                        *self.ecs.fetch::<Entity>(),
+                        WantsToUseItem {
+                            item,
+                            target: selection.1,
+                        },
+                    )
+                    .expect("Unable to insert intent to use ranged item");
+
+                self.map_drawn = false;
+                return RunState::PlayerTurn;
+            }
+        }
+    }
+
+    fn tick_main_menu(&mut self, ctx: &mut Rltk, menu_selection: MainMenuSelection) -> RunState {
+        let result = gui::process_main_menu(self, ctx);
+
+        match result {
+            gui::MainMenuResult::NoSelection { selected } => {
+                if selected != menu_selection {
+                    self.redraw_menu = true;
+                }
+                return RunState::MainMenu {
+                    menu_selection: selected,
+                };
+            }
+            gui::MainMenuResult::Selected { selected } => {
+                if selected != menu_selection {
+                    self.redraw_menu = true;
+                }
+                match selected {
+                    gui::MainMenuSelection::NewGame => {
+                        return RunState::PreRun;
+                    }
+                    gui::MainMenuSelection::Quit => {
+                        ::std::process::exit(0);
+                    }
+                }
+            }
+        }
+    }
+
+    fn tick_map_generation(&mut self, ctx: &mut Rltk) -> RunState {
+        if !SHOW_MAPGEN_VISUALIZER {
+            return self.mapgen_next_state.unwrap();
+        }
+        ctx.cls();
+
+        Map::draw_map(&self.mapgen_history[self.mapgen_index], &self.ecs, ctx);
+        self.mapgen_timer += ctx.frame_time_ms;
+        if self.mapgen_timer >= 300.0 {
+            self.mapgen_timer = 0.0;
+            self.mapgen_index += 1;
+            if self.mapgen_index >= self.mapgen_history.len() {
+                return self.mapgen_next_state.unwrap();
+            }
+        }
+        RunState::MapGeneration
+    }
 }
-
-
-
 
 impl GameState for State {
     fn tick(&mut self, ctx: &mut Rltk) {
@@ -204,37 +420,19 @@ impl GameState for State {
 
         match newrunstate {
             RunState::PreRun => {
-                self.run_systems_player();
-                newrunstate = RunState::AwaitingInput;
-                self.map_drawn = false;
+                newrunstate = self.tick_prerun();
             }
             RunState::AwaitingInput => {
                 newrunstate = player_input(self, ctx);
             }
             RunState::PlayerTurn => {
-                self.run_systems_player();
-                map::cleanup_dead(&mut self.ecs);
-                newrunstate = RunState::AwaitingInput;
-                self.map_drawn = false;
+                newrunstate = self.tick_player_turn();
             }
             RunState::NextLevel => {
-                self.goto_next_level();
-                newrunstate = RunState::PreRun;
+                newrunstate = self.tick_next_level();
             }
             RunState::Looking => {
-                if self.last_mouse_position.0 == -1 {
-                    self.last_mouse_position = ctx.mouse_pos();
-                }
-
-                if self.look_cursor.0 == -1 {
-                    let player_pos = self.ecs.fetch::<Point>();
-                    self.look_cursor.0 = player_pos.x;
-                    self.look_cursor.1 = player_pos.y;
-                }
-
-                let look_input = look_mode_input(self, ctx);
-                newrunstate = look_input.0;
-                self.look_cursor = look_input.1;
+                newrunstate = self.tick_looking(ctx);
             }
             RunState::CleanupTooltips => {
                 newrunstate = RunState::AwaitingInput;
@@ -245,142 +443,32 @@ impl GameState for State {
                 self.draw_inventory = true;
             }
             RunState::ProcessInventory => {
-                let result = gui::process_inventory(self, ctx);
-
-                match result.0 {
-                    gui::ItemMenuResult::Cancel => {
-                        newrunstate = RunState::AwaitingInput;
-                        self.map_drawn = false;
-                    }
-                    gui::ItemMenuResult::NoResponse => {}
-                    gui::ItemMenuResult::Selected => {
-                        let item_entity = result.1.unwrap();
-                        let ranged_items = self.ecs.read_storage::<Ranged>();
-                        if let Some(ranged_item) = ranged_items.get(item_entity) {
-                            let player_pos = self.ecs.fetch::<Point>();
-                            newrunstate = RunState::ShowTargeting {
-                                range: ranged_item.range,
-                                item: item_entity,
-                                cursor: *player_pos,
-                            };
-                            self.map_drawn = false;
-                        } else {
-                            let mut intent = self.ecs.write_storage::<WantsToUseItem>();
-                            intent
-                                .insert(
-                                    *self.ecs.fetch::<Entity>(),
-                                    WantsToUseItem {
-                                        item: item_entity,
-                                        target: None,
-                                    },
-                                )
-                                .expect("Unable to insert intent to use item");
-                            newrunstate = RunState::PlayerTurn;
-                            self.map_drawn = false;
-                        }
-                    }
-                }
+                newrunstate = self.tick_process_inventory(ctx);
             }
             RunState::ShowDropItem => {
                 gui::draw_drop_item_menu(self, ctx);
                 newrunstate = RunState::ProcessDropItem;
             }
             RunState::ProcessDropItem => {
-                let result = gui::process_drop_item_menu(self, ctx);
-                match result.0 {
-                    gui::ItemMenuResult::Cancel => {
-                        newrunstate = RunState::AwaitingInput;
-                        self.map_drawn = false;
-                    }
-                    gui::ItemMenuResult::NoResponse => {}
-                    gui::ItemMenuResult::Selected => {
-                        let item_entity = result.1.unwrap();
-                        let mut intent = self.ecs.write_storage::<WantsToDropItem>();
-                        intent
-                            .insert(
-                                *self.ecs.fetch::<Entity>(),
-                                WantsToDropItem { item: item_entity },
-                            )
-                            .expect("Unable to insert intent to drop item");
-                        newrunstate = RunState::PlayerTurn;
-                        self.map_drawn = false;
-                    }
-                }
+                newrunstate = self.tick_process_drop_item(ctx);
             }
             RunState::ShowTargeting {
                 range,
                 item,
                 cursor,
             } => {
-                let last_cursor = cursor;
-                let cursor = ranged_targeting_input(self, ctx, cursor, range);
-                let selection = gui::ranged_target_selection(self, ctx, cursor, range);
-                match selection.0 {
-                    ItemMenuResult::NoResponse => {
-                        if last_cursor != cursor {
-                            gui::ranged_target(self, ctx, cursor, range, item);
-                        }
-                        newrunstate = RunState::ShowTargeting {
-                            range,
-                            item,
-                            cursor,
-                        };
-                    }
-                    ItemMenuResult::Cancel => {
-                        newrunstate = RunState::AwaitingInput;
-                        self.redraw_targeting = true;
-                        self.map_drawn = false;
-                    }
-                    ItemMenuResult::Selected => {
-                        {
-                            let mut intent = self.ecs.write_storage::<WantsToUseItem>();
-                            intent
-                                .insert(
-                                    *self.ecs.fetch::<Entity>(),
-                                    WantsToUseItem {
-                                        item,
-                                        target: selection.1,
-                                    },
-                                )
-                                .expect("Unable to insert intent to use ranged item");
-                        }
-
-                        newrunstate = RunState::PlayerTurn;
-                        self.map_drawn = false;
-                    }
-                }
+                newrunstate = self.tick_show_targeting(ctx, range, item, cursor);
             }
             RunState::MainMenu { menu_selection } => {
-                let result = gui::process_main_menu(self, ctx);
-
-                match result {
-                    gui::MainMenuResult::NoSelection { selected } => {
-                        if selected != menu_selection {
-                            self.redraw_menu = true;
-                        }
-                        newrunstate = RunState::MainMenu {
-                            menu_selection: selected,
-                        };
-                    }
-                    gui::MainMenuResult::Selected { selected } => {
-                        if selected != menu_selection {
-                            self.redraw_menu = true;
-                        }
-                        match selected {
-                            gui::MainMenuSelection::NewGame => {
-                                newrunstate = RunState::PreRun;
-                            }
-                            gui::MainMenuSelection::Quit => {
-                                ::std::process::exit(0);
-                            }
-                        }
-                    }
-                }
+                newrunstate = self.tick_main_menu(ctx, menu_selection);
             }
-            RunState::ShowHelpMenu { shown }=> {
+            RunState::ShowHelpMenu { shown } => {
                 newrunstate = self.tick_help_screen(ctx, shown);
             }
-        }
+            RunState::MapGeneration => {
+                newrunstate = self.tick_map_generation(ctx);
+            }
+        } // done determining newrunstate
 
         {
             let mut runwriter = self.ecs.write_resource::<RunState>();
@@ -416,7 +504,7 @@ impl GameState for State {
             // clear screen
             ctx.cls();
 
-            Map::draw_map(&self.ecs, ctx);
+            Map::draw_map(&self.ecs.fetch::<Map>(), &self.ecs, ctx);
 
             let positions = self.ecs.read_storage::<Position>();
             let renderables = self.ecs.read_storage::<Renderable>();

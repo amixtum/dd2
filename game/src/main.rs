@@ -3,16 +3,17 @@ pub mod damage_system;
 pub mod game;
 pub mod gamelog;
 pub mod gui;
+pub mod help_viewer;
 pub mod inventory_system;
 pub mod item_drop_system;
 pub mod map;
+pub mod map_builders;
 pub mod map_indexing_system;
 pub mod movement_system;
 pub mod player;
 pub mod spawner;
 pub mod state;
 pub mod visibility_system;
-pub mod help_viewer;
 
 use components::AreaOfEffect;
 use components::Balance;
@@ -27,8 +28,8 @@ use components::Monster;
 use components::Name;
 use components::ProvidesHealing;
 use components::Ranged;
-use components::Velocity;
 use components::SufferDamage;
+use components::Velocity;
 use components::WantsToDropItem;
 use components::WantsToFallover;
 use components::WantsToMelee;
@@ -42,9 +43,12 @@ use components::Renderable;
 use components::Viewshed;
 use game::Game;
 use player::*;
+use rltk::Point;
 use state::RunState;
 
 //use std::env;
+
+const SHOW_MAPGEN_VISUALIZER: bool = true;
 
 fn main() -> rltk::BError {
     //env::set_var("RUST_BACKTRACE", "1");
@@ -76,25 +80,18 @@ fn main() -> rltk::BError {
             game.register::<Balance>();
             game.register::<WantsToFallover>();
 
-            let map = Map::new_map_rooms_and_corridors(1);
-
-            let player_pos = map.rooms[0].center();
-            let player = spawner::spawn_player(&mut game.state.ecs, player_pos.x, player_pos.y);
+            let player_entity = spawner::spawn_player(&mut game.state.ecs, 0, 0);
 
             game.state.ecs.insert(rltk::RandomNumberGenerator::new());
-            for room in map.rooms.iter() {
-                spawner::spawn_room(&mut game.state.ecs, room);
-            }
-
-            game.state.ecs.insert(RunState::MainMenu {
-                menu_selection: gui::MainMenuSelection::NewGame,
-            });
-            game.state.ecs.insert(player);
-            game.state.ecs.insert(map);
-            game.state.ecs.insert(player_pos);
+            game.state.ecs.insert(RunState::MapGeneration);
+            game.state.ecs.insert(player_entity);
+            game.state.ecs.insert(Map::new(1));
+            game.state.ecs.insert(Point::new(0, 0));
             game.state.ecs.insert(GameLog {
                 entries: vec!["Welcome to Dangerous Deliveries".to_string()],
             });
+
+            game.state.generate_world_map(1);
 
             // move game into this function
             Game::run(game)

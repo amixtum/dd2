@@ -1,10 +1,2 @@
-Next 
-    -> add glyph_table to map
-    -> add inst_v from key presses
-    -> add inst_v from collisions?
-    -> add inst_v from TileType
-        -> fn TileType to inst_v
-            -> pub const RAILBOOST: f32;
-            -> TileType::Rail {xdir: f32, ydir: f32}
-                -> in state.rs, match 
-            -> inst_v = RAILBOOST * (xdir, ydir).normalized(); xdir, ydir != 0 
+Test Harness
+Refactor newrunstate match bodies into functions

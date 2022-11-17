@@ -33,13 +33,8 @@ impl<'a> System<'a> for FalloverSystem {
     fn run(&mut self, data: Self::SystemData) {
         let (mut fallovers, mut vels, mut balances, mut combat_stats) = data;
 
-        for (_fall, vel, balance, _stats) in (
-            &mut fallovers,
-            &mut vels,
-            &mut balances,
-            &mut combat_stats,
-        )
-            .join()
+        for (_fall, vel, balance, _stats) in
+            (&mut fallovers, &mut vels, &mut balances, &mut combat_stats).join()
         {
             vel.vel = PointF::new(0.0, 0.0);
             balance.bal = PointF::new(0.0, 0.0);
@@ -126,8 +121,7 @@ impl MovementSystem {
         if last_vel.mag() > ZERO_SPEED && inst_vel.mag() > 0.01 {
             let direction_diff = last_vel - inst_vel;
             let units = vec_ops::discrete_jmp((direction_diff.x, direction_diff.y));
-            let orthogonality = (2.0 * last_vel.mag() * inst_vel.mag()
-                - last_vel.dot(inst_vel))
+            let orthogonality = (2.0 * last_vel.mag() * inst_vel.mag() - last_vel.dot(inst_vel))
                 / (2.0 * last_vel.mag() * inst_vel.mag());
 
             balance.x += units.1.signum() as f32 * orthogonality * LEAN_FACTOR;
@@ -167,9 +161,8 @@ impl<'a> System<'a> for MovementSystem {
         let mut sort_by_vel = (&entities, &mut positions, &vels)
             .join()
             .collect::<Vec<_>>();
-        sort_by_vel.sort_by(|l, r| {
-            (l.2.vel.mag().round() as i32).cmp(&(r.2.vel.mag().round() as i32))
-        });
+        sort_by_vel
+            .sort_by(|l, r| (l.2.vel.mag().round() as i32).cmp(&(r.2.vel.mag().round() as i32)));
         for (entity, pos, vel) in sort_by_vel.iter_mut().rev() {
             let x = (pos.point.x as f32 + vel.vel.x)
                 .clamp(pos.point.x as f32 - 1.0, pos.point.x as f32 + 1.0)
