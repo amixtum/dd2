@@ -12,16 +12,17 @@ use crate::gui::{ItemMenuResult, MainMenuSelection};
 use crate::inventory_system::{ItemCollectionSystem, ItemUseSystem};
 use crate::item_drop_system::ItemDropSystem;
 use crate::map::{self, Map, MAPHEIGHT, MAPWIDTH};
-use crate::map_builders::MapBuilder;
 use crate::map_indexing_system::MapIndexingSystem;
 use crate::movement_system::{FalloverSystem, MovementSystem, VelocityBalanceSystem};
-use crate::player::{self, look_mode_input, ranged_targeting_input, Player};
+use crate::player::{look_mode_input, ranged_targeting_input, Player};
 use crate::visibility_system::VisibilitySystem;
 use crate::{help_viewer, map_builders, SHOW_MAPGEN_VISUALIZER};
 
 use super::components::Position;
 use super::components::Renderable;
 use super::player::player_input;
+
+const REVEAL_MAP: bool = true;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum RunState {
@@ -420,6 +421,14 @@ impl GameState for State {
 
         match newrunstate {
             RunState::PreRun => {
+                if REVEAL_MAP {
+                    let mut map = self.ecs.fetch_mut::<Map>();
+                    for y in 0..map.height {
+                        for x in 0..map.width {
+                            map.revealed_tiles.insert(Point::new(x, y));
+                        }
+                    }
+                }
                 newrunstate = self.tick_prerun();
             }
             RunState::AwaitingInput => {

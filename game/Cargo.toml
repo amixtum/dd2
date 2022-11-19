@@ -9,6 +9,7 @@ edition = "2021"
 util = { path = "../util" }
 
 getrandom = { version = "0.2", features = ["js"] }
-rltk = { version = "0.8.1" }
+rltk = { version = "0.8.7" }
 specs = "0.18.0"
 specs-derive = "0.4.1"
+petgraph = "0.6.2"

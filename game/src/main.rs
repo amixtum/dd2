@@ -46,12 +46,12 @@ use player::*;
 use rltk::Point;
 use state::RunState;
 
-//use std::env;
+use std::env;
 
 const SHOW_MAPGEN_VISUALIZER: bool = true;
 
 fn main() -> rltk::BError {
-    //env::set_var("RUST_BACKTRACE", "1");
+    env::set_var("RUST_BACKTRACE", "1");
 
     match Game::new() {
         Ok(mut game) => {

@@ -234,16 +234,16 @@ impl BaseMap for Map {
         }
 
         if self.is_exit_valid(x - 1, y - 1) {
-            exits.push(((idx - w) - 1, 1.45));
+            exits.push(((idx - w) - 1, 1.0));
         }
         if self.is_exit_valid(x + 1, y - 1) {
-            exits.push(((idx - w) + 1, 1.45));
+            exits.push(((idx - w) + 1, 1.0));
         }
         if self.is_exit_valid(x - 1, y + 1) {
-            exits.push(((idx + w) - 1, 1.45));
+            exits.push(((idx + w) - 1, 1.0));
         }
         if self.is_exit_valid(x + 1, y + 1) {
-            exits.push(((idx + w) + 1, 1.45));
+            exits.push(((idx + w) + 1, 1.0));
         }
 
         exits
@@ -260,5 +260,19 @@ impl BaseMap for Map {
 impl Algorithm2D for Map {
     fn dimensions(&self) -> Point {
         return Point::new(self.width, self.height);
+    }
+
+    fn index_to_point2d(&self, idx: usize) -> Point {
+        let w = self.width as usize;
+        Point::new(idx % w, idx / w)
+    }
+
+    fn point2d_to_index(&self, pt: Point) -> usize {
+        self.xy_flat(pt.x, pt.y)
+    }
+
+    fn in_bounds(&self, pos: Point) -> bool {
+        pos.x > 0 && pos.y > 0 &&
+        pos.x < self.width && pos.y < self.height
     }
 }

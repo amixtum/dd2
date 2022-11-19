@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::f32::consts::PI;
 
+use rltk::Point;
+
 pub fn neighbors_set(
     (x, y): (i32, i32),
     (tl_x, tl_y): (i32, i32),
@@ -44,42 +46,45 @@ pub fn neighbors_set(
 }
 
 pub fn neighbors(
-    (x, y): (i32, i32),
-    (tl_x, tl_y): (i32, i32),
-    (br_x, br_y): (i32, i32),
-) -> Vec<(i32, i32)> {
+    center: Point,
+    top_left: Point,
+    bottom_right: Point,
+) -> Vec<Point> {
     let mut v = Vec::new();
+    let (x, y) = (center.x, center.y);
+    let (tl_x, tl_y) = (top_left.x, top_left.y);
+    let (br_x, br_y) = (bottom_right.x, bottom_right.y);
 
     if x > tl_x {
-        v.push((x - 1, y));
+        v.push(Point::new(x - 1, y));
 
         if y > tl_y {
-            v.push((x - 1, y - 1));
+            v.push(Point::new(x - 1, y - 1));
         }
 
         if y < br_y {
-            v.push((x - 1, y + 1));
+            v.push(Point::new(x - 1, y + 1));
         }
     }
 
     if x < br_x {
-        v.push((x + 1, y));
+        v.push(Point::new(x + 1, y));
 
         if y > tl_y {
-            v.push((x + 1, y - 1));
+            v.push(Point::new(x + 1, y - 1));
         }
 
         if y < br_y {
-            v.push((x + 1, y + 1));
+            v.push(Point::new(x + 1, y + 1));
         }
     }
 
     if y > tl_y {
-        v.push((x, y - 1));
+        v.push(Point::new(x, y - 1));
     }
 
     if y < br_y {
-        v.push((x, y + 1));
+        v.push(Point::new(x, y + 1));
     }
 
     v
