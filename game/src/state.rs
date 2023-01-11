@@ -398,7 +398,7 @@ impl State {
 
         Map::draw_map(&self.mapgen_history[self.mapgen_index], &self.ecs, ctx);
         self.mapgen_timer += ctx.frame_time_ms;
-        if self.mapgen_timer >= 300.0 {
+        if self.mapgen_timer >= 150.0 {
             self.mapgen_timer = 0.0;
             self.mapgen_index += 1;
             if self.mapgen_index >= self.mapgen_history.len() {

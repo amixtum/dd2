@@ -6,8 +6,8 @@ use crate::{map::{Map, MAPHEIGHT, MAPWIDTH, TileType, MAPCOUNT}, SHOW_MAPGEN_VIS
 
 use super::MapBuilder;
 
-const MIN_ROOM_SIZE : i32 = 8;
-const MIN_CONNECTED_REGION_SIZE: usize = MAPCOUNT / 3;
+const MIN_CONNECTED_REGION_SIZE: usize = (MAPCOUNT as f32 / 2.25) as usize;
+const MAX_CONNECTED_REGION_SIZE: usize = (MAPCOUNT as f32 / 2.0) as usize;
 
 pub struct CellularAutomataBuilder {
     map : Map,
@@ -52,7 +52,7 @@ impl MapBuilder for CellularAutomataBuilder {
         let mut start_idx = self.map.xy_flat(self.starting_position.x, self.starting_position.y);
         while !done {
             let mut newtiles = self.map.tiles.clone();
-            if i % 3 == 0 {
+            if i % 5 == 0  || i % 5 == 2 {
                 for y in 1..self.map.height-1 {
                     for x in 1..self.map.width-1 {
                         let idx = self.map.xy_flat(x, y);
@@ -83,7 +83,7 @@ impl MapBuilder for CellularAutomataBuilder {
                             self.map.tiles[idx] == TileType::Wall
                         }).count();
 
-                        if walls_count == 0 || walls_count > 4 {
+                        if walls_count == 0 || walls_count > 6 {
                             newtiles[idx] = TileType::Wall;
                         }
                         else {
@@ -103,6 +103,14 @@ impl MapBuilder for CellularAutomataBuilder {
                 self.starting_position = Point::new(self.map.width / 2, self.map.height / 2);
                 start_idx = self.map.xy_flat(self.starting_position.x, self.starting_position.y);
                 while self.map.tiles[start_idx] != TileType::Floor {
+                    if self.starting_position.x <= 1 {
+                        self.starting_position.x = self.map.width / 2;
+                        self.starting_position.y -= 1;
+                    }
+
+                    if self.starting_position.y <= 1 {
+                        self.starting_position.y = self.map.height / 2;
+                    }
                     self.starting_position.x -= 1;
                     start_idx = self.map.xy_flat(self.starting_position.x, self.starting_position.y);
                 }
@@ -115,7 +123,7 @@ impl MapBuilder for CellularAutomataBuilder {
 
                 console::log(format!("{} reacheable", reachable_count));
 
-                if reachable_count >= MIN_CONNECTED_REGION_SIZE {
+                if reachable_count >= MIN_CONNECTED_REGION_SIZE  && reachable_count <= MAX_CONNECTED_REGION_SIZE {
                     done = true;
                     console::log("Finished building");
                 }
